@@ -12,7 +12,7 @@
   "keywords": [
     "nodejs",
     "express",
-    "postgresql",
+    "mysql",
     "sequelize",
     "swagger",
     "api"
@@ -26,8 +26,8 @@
     "express": "^4.18.2",
     "jsonwebtoken": "^9.0.0",
     "morgan": "^1.10.0",
-    "pg": "^8.10.0",
-    "sequelize": "^6.31.0",
+    "mysql2": "^3.13.0",
+    "sequelize": "^6.37.6",
     "swagger-jsdoc": "^6.2.8",
     "swagger-ui-express": "^4.6.2",
     "winston": "^3.8.2"
