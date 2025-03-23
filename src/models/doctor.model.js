@@ -2,15 +2,25 @@ const { DataTypes } = require('sequelize');
 const bcrypt = require('bcryptjs');
 const sequelize = require('../config/database');
 
-const Doctor = sequelize.define('Doctor', {
+// Doctor Personal Information Table
+const DoctorPersonal = sequelize.define('DoctorPersonal', {
   id: {
     type: DataTypes.INTEGER,
     primaryKey: true,
     autoIncrement: true
   },
-  email: {
-    type: DataTypes.STRING(255),
+  fullName: {
+    type: DataTypes.STRING(100),
+    allowNull: false
+  },
+  phoneNumber: {
+    type: DataTypes.STRING(20),
     allowNull: false,
+    unique: true
+  },
+  email: {
+    type: DataTypes.STRING(100),
+    allowNull: true,
     unique: true,
     validate: {
       isEmail: true
@@ -18,131 +28,33 @@ const Doctor = sequelize.define('Doctor', {
   },
   password: {
     type: DataTypes.STRING(255),
-    allowNull: false
-  },
-  firstName: {
-    type: DataTypes.STRING(100),
-    allowNull: false
-  },
-  lastName: {
-    type: DataTypes.STRING(100),
-    allowNull: false
+    allowNull: true
   },
   gender: {
     type: DataTypes.ENUM('Male', 'Female', 'Other'),
-    allowNull: false
+    allowNull: true
   },
-  specialization: {
-    type: DataTypes.STRING(100),
-    allowNull: false
-  },
-  qualification: {
-    type: DataTypes.STRING(100),
-    allowNull: false
-  },
-  dateOfBirth: {
+  dob: {
     type: DataTypes.DATEONLY,
-    allowNull: false
+    allowNull: true
   },
-  yearsOfExperience: {
-    type: DataTypes.INTEGER,
-    allowNull: false
+  status: {
+    type: DataTypes.ENUM('Active', 'Inactive'),
+    defaultValue: 'Active'
   },
-  phoneNumber: {
-    type: DataTypes.STRING(20),
-    allowNull: false
-  },
-  address: {
-    type: DataTypes.TEXT,
-    allowNull: false
-  },
-  preferredLanguage: {
-    type: DataTypes.STRING(50),
-    allowNull: false
-  },
-  consultationFees: {
-    type: DataTypes.DECIMAL(10, 2),
-    allowNull: false
-  },
-  medicalLicenseNumber: {
-    type: DataTypes.STRING(100),
-    allowNull: false,
-    unique: true
-  },
-  licenseExpiryDate: {
-    type: DataTypes.DATEONLY,
-    allowNull: false
-  },
-  licenseCountry: {
-    type: DataTypes.STRING(100),
-    allowNull: false
-  },
-  isVerified: {
+  emailVerified: {
     type: DataTypes.BOOLEAN,
     defaultValue: false
   },
-  hospitalClinicName: {
-    type: DataTypes.STRING(255)
-  },
-  profilePicture: {
-    type: DataTypes.STRING(255)
-  },
-  languagesSpoken: {
-    type: DataTypes.JSON,
-    defaultValue: []
-  },
-  availableDays: {
-    type: DataTypes.JSON,
-    defaultValue: []
-  },
-  availableTimeSlots: {
-    type: DataTypes.JSON,
-    defaultValue: {}
-  },
-  timeZone: {
-    type: DataTypes.STRING(50)
-  },
-  additionalCharges: {
-    type: DataTypes.JSON,
-    defaultValue: {}
-  },
-  paymentMethods: {
-    type: DataTypes.JSON,
-    defaultValue: []
-  },
-  upiId: {
-    type: DataTypes.STRING(100)
-  },
-  previousWorkExperience: {
-    type: DataTypes.JSON,
-    defaultValue: []
-  },
-  awards: {
-    type: DataTypes.JSON,
-    defaultValue: []
-  },
-  certifications: {
-    type: DataTypes.JSON,
-    defaultValue: []
-  },
-  consultationModes: {
-    type: DataTypes.JSON,
-    defaultValue: ['Video', 'Audio', 'Text']
-  },
-  bio: {
-    type: DataTypes.TEXT
-  },
-  rating: {
-    type: DataTypes.FLOAT,
-    defaultValue: 0
-  },
-  numberOfReviews: {
-    type: DataTypes.INTEGER,
-    defaultValue: 0
+  profilePhoto: {
+    type: DataTypes.STRING(255),
+    allowNull: true
   }
 }, {
-  tableName: 'doctors',
+  tableName: 'doctor_personal',
   timestamps: true,
+  createdAt: 'timeCreated',
+  updatedAt: 'timeUpdated',
   hooks: {
     beforeCreate: async (doctor) => {
       if (doctor.password) {
@@ -157,9 +69,105 @@ const Doctor = sequelize.define('Doctor', {
   }
 });
 
-// Instance method to validate password
-Doctor.prototype.validatePassword = async function(password) {
+// Doctor Professional Information Table
+const DoctorProfessional = sequelize.define('DoctorProfessional', {
+  id: {
+    type: DataTypes.INTEGER,
+    primaryKey: true,
+    autoIncrement: true
+  },
+  doctorId: {
+    type: DataTypes.INTEGER,
+    allowNull: false,
+    references: {
+      model: DoctorPersonal,
+      key: 'id'
+    }
+  },
+  qualification: {
+    type: DataTypes.STRING(100),
+    allowNull: true
+  },
+  specialization: {
+    type: DataTypes.STRING(100),
+    allowNull: true
+  },
+  registrationNumber: {
+    type: DataTypes.STRING(50),
+    allowNull: true,
+    unique: true
+  },
+  registrationState: {
+    type: DataTypes.STRING(50),
+    allowNull: true
+  },
+  expiryDate: {
+    type: DataTypes.DATEONLY,
+    allowNull: true
+  },
+  certificates: {
+    type: DataTypes.JSON,
+    defaultValue: []
+  },
+  clinicName: {
+    type: DataTypes.STRING(100),
+    allowNull: true
+  },
+  status: {
+    type: DataTypes.ENUM('Verified', 'Unverified', 'Pending Verification'),
+    defaultValue: 'Pending Verification'
+  },
+  yearsOfExperience: {
+    type: DataTypes.INTEGER,
+    allowNull: true
+  },
+  communicationLanguages: {
+    type: DataTypes.JSON,
+    defaultValue: []
+  },
+  consultationFees: {
+    type: DataTypes.DECIMAL(10, 2),
+    allowNull: true
+  },
+  availableDays: {
+    type: DataTypes.JSON,
+    defaultValue: []
+  },
+  availableTimeSlots: {
+    type: DataTypes.JSON,
+    defaultValue: {}
+  }
+}, {
+  tableName: 'doctor_professional',
+  timestamps: true,
+  createdAt: 'timeCreated',
+  updatedAt: 'timeUpdated'
+});
+
+// Establish the relation between Personal and Professional
+DoctorPersonal.hasOne(DoctorProfessional, { foreignKey: 'doctorId' });
+DoctorProfessional.belongsTo(DoctorPersonal, { foreignKey: 'doctorId' });
+
+// Method to validate password
+DoctorPersonal.prototype.validatePassword = async function(password) {
   return bcrypt.compare(password, this.password);
 };
 
-module.exports = Doctor; 
+// Set up the models for database synchronization
+const syncModels = async () => {
+  try {
+    await DoctorPersonal.sync();
+    await DoctorProfessional.sync();
+    console.log('Doctor tables synchronized successfully');
+  } catch (error) {
+    console.error('Error syncing doctor tables:', error);
+  }
+};
+
+syncModels();
+
+module.exports = {
+  DoctorPersonal,
+  DoctorProfessional
+}; 
+// module.exports = Doctor; 
