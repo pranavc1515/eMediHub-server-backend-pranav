@@ -1,10 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const axios = require('axios');
-const { auth } = require('../middleware/auth.middleware');
-
-// Base URL for the 3rd party API
-const API_BASE_URL = 'https://devbackend.emedihub.com/user';
+const userController = require('../controllers/user.controller');
 
 /**
  * @swagger
@@ -31,21 +27,22 @@ const API_BASE_URL = 'https://devbackend.emedihub.com/user';
  */
 router.post('/register-new', async (req, res) => {
   try {
-    const response = await axios.post(`${API_BASE_URL}/register-new`, req.body, {
-      headers: {
-        'Content-Type': 'application/json'
-      }
-    });
+    const { phone } = req.body;
     
-    res.status(response.status).json(response.data);
-  } catch (error) {
-    res.status(error.response?.status || 500).json(
-      error.response?.data || {
+    if (!phone) {
+      return res.status(400).json({
         success: false,
-        message: 'Error forwarding request to authentication service',
-        error: error.message
-      }
-    );
+        message: 'Phone number is required'
+      });
+    }
+    
+    const result = await userController.registerNewUser(phone);
+    res.json(result);
+  } catch (error) {
+    res.status(400).json({
+      success: false,
+      message: error.message
+    });
   }
 });
 
@@ -77,21 +74,22 @@ router.post('/register-new', async (req, res) => {
  */
 router.post('/validate-otp', async (req, res) => {
   try {
-    const response = await axios.post(`${API_BASE_URL}/validate-otp`, req.body, {
-      headers: {
-        'Content-Type': 'application/json'
-      }
-    });
+    const { phone, otp } = req.body;
     
-    res.status(response.status).json(response.data);
-  } catch (error) {
-    res.status(error.response?.status || 500).json(
-      error.response?.data || {
+    if (!phone || !otp) {
+      return res.status(400).json({
         success: false,
-        message: 'Error forwarding request to authentication service',
-        error: error.message
-      }
-    );
+        message: 'Phone number and OTP are required'
+      });
+    }
+    
+    const result = await userController.validateOTP(phone, otp);
+    res.json(result);
+  } catch (error) {
+    res.status(400).json({
+      success: false,
+      message: error.message
+    });
   }
 });
 
@@ -120,21 +118,22 @@ router.post('/validate-otp', async (req, res) => {
  */
 router.post('/checkUserExist', async (req, res) => {
   try {
-    const response = await axios.post(`${API_BASE_URL}/checkUserExist`, req.body, {
-      headers: {
-        'Content-Type': 'application/json'
-      }
-    });
+    const { phone } = req.body;
     
-    res.status(response.status).json(response.data);
-  } catch (error) {
-    res.status(error.response?.status || 500).json(
-      error.response?.data || {
+    if (!phone) {
+      return res.status(400).json({
         success: false,
-        message: 'Error forwarding request to authentication service',
-        error: error.message
-      }
-    );
+        message: 'Phone number is required'
+      });
+    }
+    
+    const result = await userController.checkUserExists(phone);
+    res.json(result);
+  } catch (error) {
+    res.status(400).json({
+      success: false,
+      message: error.message
+    });
   }
 });
 
@@ -169,22 +168,13 @@ router.put('/record-personal-details', async (req, res) => {
       });
     }
     
-    const response = await axios.put(`${API_BASE_URL}/record-personal-details`, req.body, {
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': authHeader
-      }
-    });
-    
-    res.status(response.status).json(response.data);
+    const result = await userController.recordPersonalDetails(req.body, authHeader);
+    res.json(result);
   } catch (error) {
-    res.status(error.response?.status || 500).json(
-      error.response?.data || {
-        success: false,
-        message: 'Error forwarding request to user service',
-        error: error.message
-      }
-    );
+    res.status(400).json({
+      success: false,
+      message: error.message
+    });
   }
 });
 
@@ -213,21 +203,13 @@ router.get('/profile-details', async (req, res) => {
       });
     }
     
-    const response = await axios.get(`${API_BASE_URL}/profile-details`, {
-      headers: {
-        'Authorization': authHeader
-      }
-    });
-    
-    res.status(response.status).json(response.data);
+    const result = await userController.getProfileDetails(authHeader);
+    res.json(result);
   } catch (error) {
-    res.status(error.response?.status || 500).json(
-      error.response?.data || {
-        success: false,
-        message: 'Error forwarding request to user service',
-        error: error.message
-      }
-    );
+    res.status(400).json({
+      success: false,
+      message: error.message
+    });
   }
 });
 
@@ -256,21 +238,13 @@ router.get('/medical-details', async (req, res) => {
       });
     }
     
-    const response = await axios.get(`${API_BASE_URL}/medical-details`, {
-      headers: {
-        'Authorization': authHeader
-      }
-    });
-    
-    res.status(response.status).json(response.data);
+    const result = await userController.getMedicalDetails(authHeader);
+    res.json(result);
   } catch (error) {
-    res.status(error.response?.status || 500).json(
-      error.response?.data || {
-        success: false,
-        message: 'Error forwarding request to user service',
-        error: error.message
-      }
-    );
+    res.status(400).json({
+      success: false,
+      message: error.message
+    });
   }
 });
 
@@ -301,6 +275,7 @@ router.get('/medical-details', async (req, res) => {
  */
 router.put('/email-verify', async (req, res) => {
   try {
+    const { email } = req.body;
     const authHeader = req.headers.authorization;
     
     if (!authHeader) {
@@ -310,22 +285,20 @@ router.put('/email-verify', async (req, res) => {
       });
     }
     
-    const response = await axios.put(`${API_BASE_URL}/email-verify`, req.body, {
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': authHeader
-      }
-    });
-    
-    res.status(response.status).json(response.data);
-  } catch (error) {
-    res.status(error.response?.status || 500).json(
-      error.response?.data || {
+    if (!email) {
+      return res.status(400).json({
         success: false,
-        message: 'Error forwarding request to user service',
-        error: error.message
-      }
-    );
+        message: 'Email is required'
+      });
+    }
+    
+    const result = await userController.verifyEmail(email, authHeader);
+    res.json(result);
+  } catch (error) {
+    res.status(400).json({
+      success: false,
+      message: error.message
+    });
   }
 });
 
@@ -360,22 +333,57 @@ router.post('/medical-details', async (req, res) => {
       });
     }
     
-    const response = await axios.post(`${API_BASE_URL}/medical-details`, req.body, {
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': authHeader
-      }
-    });
-    
-    res.status(response.status).json(response.data);
+    const result = await userController.updateMedicalDetails(req.body, authHeader);
+    res.json(result);
   } catch (error) {
-    res.status(error.response?.status || 500).json(
-      error.response?.data || {
+    res.status(400).json({
+      success: false,
+      message: error.message
+    });
+  }
+});
+
+/**
+ * @swagger
+ * /api/users/do-login:
+ *   post:
+ *     summary: Login user with username (Proxy to 3rd party API)
+ *     tags: [Users]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - username
+ *             properties:
+ *               username:
+ *                 type: string
+ *     responses:
+ *       200:
+ *         description: Success response from 3rd party API
+ *       400:
+ *         description: Error response from 3rd party API
+ */
+router.post('/do-login', async (req, res) => {
+  try {
+    const { username } = req.body;
+    
+    if (!username) {
+      return res.status(400).json({
         success: false,
-        message: 'Error forwarding request to user service',
-        error: error.message
-      }
-    );
+        message: 'Username is required'
+      });
+    }
+    
+    const result = await userController.doLogin(username);
+    res.json(result);
+  } catch (error) {
+    res.status(400).json({
+      success: false,
+      message: error.message
+    });
   }
 });
 
