@@ -27,20 +27,25 @@ const generateOTP = () => {
  *             properties:
  *               phoneNumber:
  *                 type: string
+ *                 pattern: '^[0-9]{10}$'
+ *                 description: 10-digit phone number
  *     responses:
  *       200:
  *         description: OTP sent successfully
  *       400:
  *         description: Invalid input data
+ *       429:
+ *         description: Too many requests
  */
 router.post('/register', async (req, res) => {
   try {
     const { phoneNumber } = req.body;
 
-    if (!phoneNumber) {
+    // Validate phone number format (10 digits)
+    if (!phoneNumber || !/^[0-9]{10}$/.test(phoneNumber)) {
       return res.status(400).json({
         success: false,
-        message: 'Phone number is required'
+        message: 'Invalid phone number format. Please provide a 10-digit number.'
       });
     }
 
@@ -61,11 +66,14 @@ router.post('/register', async (req, res) => {
       });
     }
 
-    // Generate OTP (in a real application, send via SMS)
+    // Generate OTP
     const otp = generateOTP();
     
-    // In a real application, store OTP in database or redis with expiry
-    // For demo purposes, we'll use 111111 as the OTP
+    // For demo purposes, using 111111 as the OTP
+    // In production:
+    // 1. Store OTP in database/redis with expiry
+    // 2. Implement rate limiting for OTP generation
+    // 3. Send OTP via SMS gateway
     
     res.json({
       success: true,

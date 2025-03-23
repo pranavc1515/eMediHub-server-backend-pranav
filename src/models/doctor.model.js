@@ -11,7 +11,8 @@ const DoctorPersonal = sequelize.define('DoctorPersonal', {
   },
   fullName: {
     type: DataTypes.STRING(100),
-    allowNull: false
+    defaultValue: 'Dr. ',
+    allowNull: true
   },
   phoneNumber: {
     type: DataTypes.STRING(20),
@@ -44,7 +45,7 @@ const DoctorPersonal = sequelize.define('DoctorPersonal', {
   },
   emailVerified: {
     type: DataTypes.BOOLEAN,
-    defaultValue: false
+    defaultValue: true
   },
   profilePhoto: {
     type: DataTypes.STRING(255),
