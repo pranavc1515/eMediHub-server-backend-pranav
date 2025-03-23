@@ -50,6 +50,14 @@ const DoctorPersonal = sequelize.define('DoctorPersonal', {
   profilePhoto: {
     type: DataTypes.STRING(255),
     allowNull: true
+  },
+  isOnline: {
+    type: DataTypes.ENUM('available', 'offline'),
+    defaultValue: 'offline'
+  },
+  lastSeen: {
+    type: DataTypes.DATE,
+    defaultValue: DataTypes.NOW
   }
 }, {
   tableName: 'doctor_personal',

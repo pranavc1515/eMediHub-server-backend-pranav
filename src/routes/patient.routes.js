@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const { auth } = require('../middleware/auth.middleware');
-const Patient = require('../models/patient.model');
+const patientController = require('../controllers/patient.controller');
 
 /**
  * @swagger
@@ -64,25 +64,6 @@ const Patient = require('../models/patient.model');
  */
 router.post('/profile', auth, async (req, res) => {
   try {
-    const isMainProfile = !req.body.relationship;
-
-    // Check if main profile already exists for this user
-    if (isMainProfile) {
-      const existingMainProfile = await Patient.findOne({
-        where: {
-          userId: req.user.id,
-          isMainUser: true,
-        },
-      });
-
-      if (existingMainProfile) {
-        return res.status(400).json({
-          success: false,
-          message: 'Main patient profile already exists for this user',
-        });
-      }
-    }
-
     // Required fields validation
     const requiredFields = [
       'firstName',
@@ -92,8 +73,11 @@ router.post('/profile', auth, async (req, res) => {
       'phoneNumber',
       'preferredLanguage',
     ];
-
-    if (!isMainProfile) {
+    
+    if (!req.body.relationship) {
+      // This is a main profile
+    } else {
+      // This is a family member profile
       requiredFields.push('relationship');
     }
 
@@ -123,62 +107,46 @@ router.post('/profile', auth, async (req, res) => {
       });
     }
 
-    // Create patient profile
-    const patient = await Patient.create({
-      ...req.body,
-      userId: req.user.id,
-      isMainUser: isMainProfile,
-    });
-
-    // Remove sensitive information
-    const patientData = patient.toJSON();
-    delete patientData.password;
+    const result = await patientController.createPatientProfile(req.user.id, req.body);
 
     res.status(201).json({
       success: true,
       message: 'Patient profile created successfully',
-      data: patientData,
+      data: result,
     });
   } catch (error) {
     res.status(400).json({
       success: false,
-      message: 'Error creating patient profile',
-      error: error.message,
+      message: error.message,
     });
   }
 });
 
 /**
  * @swagger
- * /api/patients/family:
+ * /api/patients/profiles:
  *   get:
- *     summary: Get all family members' profiles
+ *     summary: Get all patient profiles for the authenticated user
  *     tags: [Patients]
  *     security:
  *       - bearerAuth: []
  *     responses:
  *       200:
- *         description: Family members retrieved successfully
+ *         description: Profiles retrieved successfully
  */
-router.get('/family', auth, async (req, res) => {
+router.get('/profiles', auth, async (req, res) => {
   try {
-    const patients = await Patient.findAll({
-      where: {
-        userId: req.user.id,
-        isMainUser: false,
-      },
-      attributes: { exclude: ['password'] },
-    });
+    const profiles = await patientController.getPatientProfiles(req.user.id);
 
     res.json({
       success: true,
-      data: patients,
+      count: profiles.length,
+      data: profiles,
     });
   } catch (error) {
     res.status(400).json({
       success: false,
-      message: 'Error fetching family members',
-      error: error.message,
+      message: error.message,
     });
   }
 });
@@ -199,36 +167,29 @@ router.get('/family', auth, async (req, res) => {
  *           type: string
  *     responses:
  *       200:
- *         description: Patient profile retrieved successfully
+ *         description: Profile retrieved successfully
  *       404:
  *         description: Patient not found
  */
 router.get('/profile/:id', auth, async (req, res) => {
   try {
-    const patient = await Patient.findOne({
-      where: {
-        id: req.params.id,
-        userId: req.user.id,
-      },
-      attributes: { exclude: ['password'] },
-    });
-
-    if (!patient) {
-      return res.status(404).json({
-        success: false,
-        message: 'Patient not found',
-      });
-    }
+    const profile = await patientController.getPatientProfile(req.params.id, req.user.id);
 
     res.json({
       success: true,
-      data: patient,
+      data: profile,
     });
   } catch (error) {
+    if (error.message.includes('not found')) {
+      return res.status(404).json({
+        success: false,
+        message: error.message,
+      });
+    }
+    
     res.status(400).json({
       success: false,
-      message: 'Error fetching patient profile',
-      error: error.message,
+      message: error.message,
     });
   }
 });
@@ -255,31 +216,12 @@ router.get('/profile/:id', auth, async (req, res) => {
  *             type: object
  *     responses:
  *       200:
- *         description: Patient profile updated successfully
+ *         description: Profile updated successfully
  *       404:
  *         description: Patient not found
  */
 router.put('/profile/:id', auth, async (req, res) => {
   try {
-    const patient = await Patient.findOne({
-      where: {
-        id: req.params.id,
-        userId: req.user.id,
-      },
-    });
-
-    if (!patient) {
-      return res.status(404).json({
-        success: false,
-        message: 'Patient not found',
-      });
-    }
-
-    // Remove fields that shouldn't be updated directly
-    delete req.body.userId;
-    delete req.body.isMainUser;
-    delete req.body.password;
-
     // Validate gender if provided
     if (req.body.gender && !['Male', 'Female', 'Other'].includes(req.body.gender)) {
       return res.status(400).json({
@@ -296,22 +238,28 @@ router.put('/profile/:id', auth, async (req, res) => {
       });
     }
 
-    await patient.update(req.body);
-
-    // Remove sensitive information
-    const patientData = patient.toJSON();
-    delete patientData.password;
+    const updatedProfile = await patientController.updatePatientProfile(
+      req.params.id,
+      req.user.id,
+      req.body
+    );
 
     res.json({
       success: true,
       message: 'Patient profile updated successfully',
-      data: patientData,
+      data: updatedProfile,
     });
   } catch (error) {
+    if (error.message.includes('not found')) {
+      return res.status(404).json({
+        success: false,
+        message: error.message,
+      });
+    }
+    
     res.status(400).json({
       success: false,
-      message: 'Error updating patient profile',
-      error: error.message,
+      message: error.message,
     });
   }
 });
@@ -340,38 +288,30 @@ router.put('/profile/:id', auth, async (req, res) => {
  */
 router.delete('/profile/:id', auth, async (req, res) => {
   try {
-    const patient = await Patient.findOne({
-      where: {
-        id: req.params.id,
-        userId: req.user.id,
-      },
-    });
-
-    if (!patient) {
-      return res.status(404).json({
-        success: false,
-        message: 'Patient not found',
-      });
-    }
-
-    if (patient.isMainUser) {
-      return res.status(400).json({
-        success: false,
-        message: 'Cannot delete main user profile',
-      });
-    }
-
-    await patient.destroy();
+    await patientController.deletePatientProfile(req.params.id, req.user.id);
 
     res.json({
       success: true,
       message: 'Patient profile deleted successfully',
     });
   } catch (error) {
+    if (error.message.includes('not found')) {
+      return res.status(404).json({
+        success: false,
+        message: error.message,
+      });
+    }
+    
+    if (error.message.includes('Cannot delete main user profile')) {
+      return res.status(400).json({
+        success: false,
+        message: error.message,
+      });
+    }
+    
     res.status(400).json({
       success: false,
-      message: 'Error deleting patient profile',
-      error: error.message,
+      message: error.message,
     });
   }
 });

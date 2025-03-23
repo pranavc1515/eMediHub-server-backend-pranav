@@ -1,4 +1,5 @@
 const jwt = require('jsonwebtoken');
+const bcrypt = require('bcryptjs');
 const { DoctorPersonal, DoctorProfessional } = require('../models/doctor.model');
 
 // Utility function to generate a random 6-digit OTP
@@ -6,161 +7,121 @@ const generateOTP = () => {
   return Math.floor(100000 + Math.random() * 900000).toString();
 };
 
-// Register a new doctor
-exports.registerDoctor = async (req, res) => {
+// Register a new doctor with phone number
+const registerDoctor = async (phoneNumber) => {
   try {
-    const { phoneNumber } = req.body;
-
-    if (!phoneNumber) {
-      return res.status(400).json({
-        success: false,
-        message: 'Phone number is required'
-      });
+    // Validate phone number format (10 digits)
+    if (!phoneNumber || !/^\+91[0-9]{10}$/.test(phoneNumber)) {
+      throw new Error('Invalid phone number format. Please provide a valid phone number with the country code +91 (e.g., +919876543210).');
     }
 
     // Check if doctor already exists
     let doctor = await DoctorPersonal.findOne({ where: { phoneNumber } });
-    
+
     if (!doctor) {
       // Create new doctor if not exists
       doctor = await DoctorPersonal.create({
         phoneNumber,
-        status: 'Active'
+        status: "Active",
       });
 
       // Create an empty professional record for the doctor
       await DoctorProfessional.create({
         doctorId: doctor.id,
-        status: 'Pending Verification'
+        status: "Pending Verification",
       });
     }
 
-    // Generate OTP (in a real application, send via SMS)
+    // Generate OTP
     const otp = generateOTP();
-    
-    // In a real application, store OTP in database or redis with expiry
-    // For demo purposes, we'll use 111111 as the OTP
-    
-    res.json({
-      success: true,
-      message: 'OTP sent successfully',
-      data: {
-        phoneNumber
-      }
-    });
+
+    // For demo purposes, using 1111 as the OTP
+    // In production:
+    // 1. Store OTP in database/redis with expiry
+    // 2. Implement rate limiting for OTP generation
+    // 3. Send OTP via SMS gateway
+
+    return {
+      phoneNumber
+    };
   } catch (error) {
-    res.status(400).json({
-      success: false,
-      message: 'Registration failed',
-      error: error.message
-    });
+    throw new Error(`Registration failed: ${error.message}`);
   }
 };
 
 // Validate OTP and authenticate doctor
-exports.validateOTP = async (req, res) => {
+const validateOTP = async (phoneNumber, otp) => {
   try {
-    const { phoneNumber, otp } = req.body;
-
     if (!phoneNumber || !otp) {
-      return res.status(400).json({
-        success: false,
-        message: 'Phone number and OTP are required'
-      });
+      throw new Error('Phone number and OTP are required');
     }
 
     // Find doctor by phone number
     const doctor = await DoctorPersonal.findOne({ where: { phoneNumber } });
 
     if (!doctor) {
-      return res.status(404).json({
-        success: false,
-        message: 'Doctor not found'
-      });
+      throw new Error('Doctor not found');
     }
 
-    // For demo purposes, accept 111111 as valid OTP
-    if (otp !== '111111') {
-      return res.status(400).json({
-        success: false,
-        message: 'Invalid OTP'
-      });
+    // For demo purposes, accept 1111 as valid OTP
+    if (otp !== "1111") {
+      throw new Error('Invalid OTP');
     }
 
     // Generate JWT token
     const token = jwt.sign(
-      { id: doctor.id, phoneNumber: doctor.phoneNumber, type: 'doctor' },
+      { id: doctor.id, phoneNumber: doctor.phoneNumber, type: "doctor" },
       process.env.JWT_SECRET,
       { expiresIn: process.env.JWT_EXPIRES_IN }
     );
 
-    res.json({
-      success: true,
-      message: 'OTP validated successfully',
-      data: {
-        token,
-        doctor: {
-          id: doctor.id,
-          phoneNumber: doctor.phoneNumber,
-          isProfileComplete: !!doctor.fullName
-        }
-      }
-    });
+    return {
+      token,
+      doctor: {
+        id: doctor.id,
+        phoneNumber: doctor.phoneNumber,
+        isProfileComplete: !!doctor.fullName,
+      },
+    };
   } catch (error) {
-    res.status(400).json({
-      success: false,
-      message: 'OTP validation failed',
-      error: error.message
-    });
+    throw new Error(`OTP validation failed: ${error.message}`);
   }
 };
 
-// Check if doctor exists
-exports.checkDoctorExists = async (req, res) => {
+// Check if doctor exists by phone number
+const checkDoctorExists = async (phoneNumber) => {
   try {
-    const { phoneNumber } = req.body;
-
     if (!phoneNumber) {
-      return res.status(400).json({
-        success: false,
-        message: 'Phone number is required'
-      });
+      throw new Error('Phone number is required');
     }
 
     const doctor = await DoctorPersonal.findOne({ where: { phoneNumber } });
 
-    res.json({
-      success: true,
+    return {
       exists: !!doctor,
-      data: doctor ? {
-        id: doctor.id,
-        phoneNumber: doctor.phoneNumber,
-        isProfileComplete: !!doctor.fullName
-      } : null
-    });
+      data: doctor
+        ? {
+          id: doctor.id,
+          phoneNumber: doctor.phoneNumber,
+          isProfileComplete: !!doctor.fullName,
+        }
+        : null,
+    };
   } catch (error) {
-    res.status(400).json({
-      success: false,
-      message: 'Check failed',
-      error: error.message
-    });
+    throw new Error(`Check failed: ${error.message}`);
   }
 };
 
 // Update doctor's personal details
-exports.updatePersonalDetails = async (req, res) => {
+const updatePersonalDetails = async (doctorId, personalData) => {
   try {
-    const { fullName, email, gender, dob, profilePhoto } = req.body;
-    const doctorId = req.user.id;
+    const { fullName, email, gender, dob, profilePhoto } = personalData;
 
     // Find doctor
     const doctor = await DoctorPersonal.findByPk(doctorId);
 
     if (!doctor) {
-      return res.status(404).json({
-        success: false,
-        message: 'Doctor not found'
-      });
+      throw new Error('Doctor not found');
     }
 
     // Update doctor personal details
@@ -169,35 +130,27 @@ exports.updatePersonalDetails = async (req, res) => {
       email: email || doctor.email,
       gender: gender || doctor.gender,
       dob: dob || doctor.dob,
-      profilePhoto: profilePhoto || doctor.profilePhoto
+      profilePhoto: profilePhoto || doctor.profilePhoto,
     });
 
-    res.json({
-      success: true,
-      message: 'Personal details updated successfully',
-      data: {
-        id: updatedDoctor.id,
-        fullName: updatedDoctor.fullName,
-        phoneNumber: updatedDoctor.phoneNumber,
-        email: updatedDoctor.email,
-        gender: updatedDoctor.gender,
-        dob: updatedDoctor.dob,
-        profilePhoto: updatedDoctor.profilePhoto,
-        status: updatedDoctor.status,
-        emailVerified: updatedDoctor.emailVerified
-      }
-    });
+    return {
+      id: updatedDoctor.id,
+      fullName: updatedDoctor.fullName,
+      phoneNumber: updatedDoctor.phoneNumber,
+      email: updatedDoctor.email,
+      gender: updatedDoctor.gender,
+      dob: updatedDoctor.dob,
+      profilePhoto: updatedDoctor.profilePhoto,
+      status: updatedDoctor.status,
+      emailVerified: updatedDoctor.emailVerified,
+    };
   } catch (error) {
-    res.status(400).json({
-      success: false,
-      message: 'Failed to update personal details',
-      error: error.message
-    });
+    throw new Error(`Failed to update personal details: ${error.message}`);
   }
 };
 
 // Update doctor's professional details
-exports.updateProfessionalDetails = async (req, res) => {
+const updateProfessionalDetails = async (doctorId, professionalData) => {
   try {
     const {
       qualification,
@@ -209,18 +162,18 @@ exports.updateProfessionalDetails = async (req, res) => {
       clinicName,
       yearsOfExperience,
       communicationLanguages,
-      consultationFees
-    } = req.body;
-    
-    const doctorId = req.user.id;
+      consultationFees,
+    } = professionalData;
 
     // Find or create professional details
-    let professional = await DoctorProfessional.findOne({ where: { doctorId } });
+    let professional = await DoctorProfessional.findOne({
+      where: { doctorId },
+    });
 
     if (!professional) {
       professional = await DoctorProfessional.create({
         doctorId,
-        status: 'Pending Verification'
+        status: "Pending Verification",
       });
     }
 
@@ -236,132 +189,71 @@ exports.updateProfessionalDetails = async (req, res) => {
       yearsOfExperience: yearsOfExperience || professional.yearsOfExperience,
       communicationLanguages: communicationLanguages || professional.communicationLanguages,
       consultationFees: consultationFees || professional.consultationFees,
-      status: 'Pending Verification'
     });
 
-    res.json({
-      success: true,
-      message: 'Professional details updated successfully',
-      data: professional
-    });
+    return professional;
   } catch (error) {
-    res.status(400).json({
-      success: false,
-      message: 'Failed to update professional details',
-      error: error.message
-    });
+    throw new Error(`Failed to update professional details: ${error.message}`);
   }
 };
 
-// Get doctor's complete profile
-exports.getDoctorProfile = async (req, res) => {
+// Update doctor online status
+const updateOnlineStatus = async (doctorId, status) => {
   try {
-    const doctorId = req.user.id;
-
-    // Find doctor with professional details
-    const doctor = await DoctorPersonal.findByPk(doctorId, {
-      attributes: { exclude: ['password'] },
-      include: [{
-        model: DoctorProfessional,
-        attributes: { exclude: ['id', 'doctorId'] }
-      }]
-    });
-
-    if (!doctor) {
-      return res.status(404).json({
-        success: false,
-        message: 'Doctor not found'
-      });
+    if (!['available', 'offline'].includes(status)) {
+      throw new Error('Invalid status. Status must be "available" or "offline"');
     }
 
-    res.json({
-      success: true,
-      data: doctor
-    });
-  } catch (error) {
-    res.status(400).json({
-      success: false,
-      message: 'Error fetching profile',
-      error: error.message
-    });
-  }
-};
-
-// Verify doctor's email
-exports.verifyEmail = async (req, res) => {
-  try {
-    const { email } = req.body;
-    const doctorId = req.user.id;
-
-    // Find doctor
     const doctor = await DoctorPersonal.findByPk(doctorId);
 
     if (!doctor) {
-      return res.status(404).json({
-        success: false,
-        message: 'Doctor not found'
-      });
+      throw new Error('Doctor not found');
     }
 
-    // Update email (in a real app, you would send a verification email)
     await doctor.update({
-      email: email || doctor.email
+      isOnline: status,
+      lastSeen: status === 'offline' ? new Date() : doctor.lastSeen
     });
 
-    // For demo purposes, just mark it as verified
-    // In a real app, this would be done through a verification link
-    await doctor.update({
-      emailVerified: true
-    });
-
-    res.json({
-      success: true,
-      message: 'Email verified successfully',
-      data: {
-        id: doctor.id,
-        email: doctor.email,
-        emailVerified: doctor.emailVerified
-      }
-    });
+    return {
+      id: doctor.id,
+      isOnline: doctor.isOnline,
+      lastSeen: doctor.lastSeen
+    };
   } catch (error) {
-    res.status(400).json({
-      success: false,
-      message: 'Failed to verify email',
-      error: error.message
-    });
+    throw new Error(`Error updating online status: ${error.message}`);
   }
 };
 
-// Get all verified doctors
-exports.getAllDoctors = async (req, res) => {
+// Get doctor online status
+const getOnlineStatus = async (doctorId) => {
   try {
-    const { specialization } = req.query;
-    const whereProf = { status: 'Verified' };
-    
-    if (specialization) {
-      whereProf.specialization = specialization;
+    const doctor = await DoctorPersonal.findByPk(doctorId, {
+      attributes: ['id', 'fullName', 'isOnline', 'lastSeen']
+    });
+
+    if (!doctor) {
+      throw new Error('Doctor not found');
     }
 
-    // Find all verified doctors
-    const doctors = await DoctorPersonal.findAll({
-      attributes: { exclude: ['password'] },
-      include: [{
-        model: DoctorProfessional,
-        where: whereProf,
-        attributes: { exclude: ['id'] }
-      }]
-    });
-
-    res.json({
-      success: true,
-      count: doctors.length,
-      data: doctors
-    });
+    return {
+      id: doctor.id,
+      fullName: doctor.fullName,
+      isOnline: doctor.isOnline,
+      lastSeen: doctor.lastSeen
+    };
   } catch (error) {
-    res.status(400).json({
-      success: false,
-      message: 'Error fetching doctors',
-      error: error.message
-    });
+    throw new Error(`Error fetching online status: ${error.message}`);
   }
-}; 
+};
+
+// Export all doctor controller functions
+module.exports = {
+  registerDoctor,
+  validateOTP,
+  checkDoctorExists,
+  updatePersonalDetails,
+  updateProfessionalDetails,
+  updateOnlineStatus,
+  getOnlineStatus
+};
