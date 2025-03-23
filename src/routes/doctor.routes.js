@@ -219,10 +219,10 @@ router.post("/check-exists", async (req, res) => {
       exists: !!doctor,
       data: doctor
         ? {
-            id: doctor.id,
-            phoneNumber: doctor.phoneNumber,
-            isProfileComplete: !!doctor.fullName,
-          }
+          id: doctor.id,
+          phoneNumber: doctor.phoneNumber,
+          isProfileComplete: !!doctor.fullName,
+        }
         : null,
     });
   } catch (error) {
@@ -428,23 +428,37 @@ router.post("/professional-details", auth, async (req, res) => {
  *     tags: [Doctors]
  *     security:
  *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: doctorId
+ *         schema:
+ *           type: integer
+ *         description: Optional doctor ID. If not provided, returns the authenticated doctor's profile
  *     responses:
  *       200:
  *         description: Profile retrieved successfully
  *       401:
  *         description: Unauthorized
+ *       403:
+ *         description: Forbidden - Cannot access other doctor's private information
+ *       404:
+ *         description: Doctor not found
  */
 router.get("/profile", auth, async (req, res) => {
   try {
-    const doctorId = req.user.id;
+    const requestedDoctorId = req.query.doctorId ? parseInt(req.query.doctorId) : req.user.id;
+    const isOwnProfile = requestedDoctorId === req.user.id;
 
     // Find doctor with professional details
-    const doctor = await DoctorPersonal.findByPk(doctorId, {
-      attributes: { exclude: ["password"] },
+    const doctor = await DoctorPersonal.findByPk(requestedDoctorId, {
+      attributes: {
+        exclude: ["password"],
+      },
       include: [
         {
           model: DoctorProfessional,
           attributes: { exclude: ["id", "doctorId"] },
+          where: isOwnProfile ? {} : { status: "Verified" }
         },
       ],
     });
@@ -453,6 +467,22 @@ router.get("/profile", auth, async (req, res) => {
       return res.status(404).json({
         success: false,
         message: "Doctor not found",
+      });
+    }
+
+    // If requesting other doctor's profile, only return public information
+    if (!isOwnProfile) {
+      const publicProfile = {
+        id: doctor.id,
+        fullName: doctor.fullName,
+        gender: doctor.gender,
+        profilePhoto: doctor.profilePhoto,
+        DoctorProfessional: doctor.DoctorProfessional
+      };
+
+      return res.json({
+        success: true,
+        data: publicProfile,
       });
     }
 

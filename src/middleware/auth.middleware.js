@@ -1,6 +1,6 @@
 const jwt = require('jsonwebtoken');
 const User = require('../models/user.model');
-const Doctor = require('../models/doctor.model');
+const { DoctorPersonal } = require('../models/doctor.model');
 
 const auth = async (req, res, next) => {
   try {
@@ -17,7 +17,7 @@ const auth = async (req, res, next) => {
     let user;
 
     if (decoded.type === 'doctor') {
-      user = await Doctor.findOne({ where: { id: decoded.id } });
+      user = await DoctorPersonal.findOne({ where: { id: decoded.id } });
     } else {
       user = await User.findOne({ where: { id: decoded.id } });
     }
@@ -49,4 +49,4 @@ const authorize = (...roles) => {
   };
 };
 
-module.exports = { auth, authorize }; 
+module.exports = { auth, authorize };
