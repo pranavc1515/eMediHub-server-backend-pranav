@@ -1,9 +1,12 @@
-const express = require('express');
+const express = require("express");
 const router = express.Router();
-const jwt = require('jsonwebtoken');
-const bcrypt = require('bcryptjs');
-const { DoctorPersonal, DoctorProfessional } = require('../models/doctor.model');
-const { auth } = require('../middleware/auth.middleware');
+const jwt = require("jsonwebtoken");
+const bcrypt = require("bcryptjs");
+const {
+  DoctorPersonal,
+  DoctorProfessional,
+} = require("../models/doctor.model");
+const { auth } = require("../middleware/auth.middleware");
 
 // Utility function to generate a random 6-digit OTP
 const generateOTP = () => {
@@ -37,56 +40,57 @@ const generateOTP = () => {
  *       429:
  *         description: Too many requests
  */
-router.post('/register', async (req, res) => {
+router.post("/register", async (req, res) => {
   try {
     const { phoneNumber } = req.body;
 
     // Validate phone number format (10 digits)
-    if (!phoneNumber || !/^[0-9]{10}$/.test(phoneNumber)) {
+    if (!phoneNumber || !/^\+91[0-9]{10}$/.test(phoneNumber)) {
       return res.status(400).json({
         success: false,
-        message: 'Invalid phone number format. Please provide a 10-digit number.'
+        message:
+          "Invalid phone number format. Please provide a valid phone number with the country code +91 (e.g., +919876543210).",
       });
     }
 
     // Check if doctor already exists
     let doctor = await DoctorPersonal.findOne({ where: { phoneNumber } });
-    
+
     if (!doctor) {
       // Create new doctor if not exists
       doctor = await DoctorPersonal.create({
         phoneNumber,
-        status: 'Active'
+        status: "Active",
       });
 
       // Create an empty professional record for the doctor
       await DoctorProfessional.create({
         doctorId: doctor.id,
-        status: 'Pending Verification'
+        status: "Pending Verification",
       });
     }
 
     // Generate OTP
     const otp = generateOTP();
-    
+
     // For demo purposes, using 111111 as the OTP
     // In production:
     // 1. Store OTP in database/redis with expiry
     // 2. Implement rate limiting for OTP generation
     // 3. Send OTP via SMS gateway
-    
+
     res.json({
       success: true,
-      message: 'OTP sent successfully',
+      message: "OTP sent successfully",
       data: {
-        phoneNumber
-      }
+        phoneNumber,
+      },
     });
   } catch (error) {
     res.status(400).json({
       success: false,
-      message: 'Registration failed',
-      error: error.message
+      message: "Registration failed",
+      error: error.message,
     });
   }
 });
@@ -119,14 +123,14 @@ router.post('/register', async (req, res) => {
  *       404:
  *         description: Doctor not found
  */
-router.post('/validate-otp', async (req, res) => {
+router.post("/validate-otp", async (req, res) => {
   try {
     const { phoneNumber, otp } = req.body;
 
     if (!phoneNumber || !otp) {
       return res.status(400).json({
         success: false,
-        message: 'Phone number and OTP are required'
+        message: "Phone number and OTP are required",
       });
     }
 
@@ -136,42 +140,42 @@ router.post('/validate-otp', async (req, res) => {
     if (!doctor) {
       return res.status(404).json({
         success: false,
-        message: 'Doctor not found'
+        message: "Doctor not found",
       });
     }
 
     // For demo purposes, accept 111111 as valid OTP
-    if (otp !== '111111') {
+    if (otp !== "1111") {
       return res.status(400).json({
         success: false,
-        message: 'Invalid OTP'
+        message: "Invalid OTP",
       });
     }
 
     // Generate JWT token
     const token = jwt.sign(
-      { id: doctor.id, phoneNumber: doctor.phoneNumber, type: 'doctor' },
+      { id: doctor.id, phoneNumber: doctor.phoneNumber, type: "doctor" },
       process.env.JWT_SECRET,
       { expiresIn: process.env.JWT_EXPIRES_IN }
     );
 
     res.json({
       success: true,
-      message: 'OTP validated successfully',
+      message: "OTP validated successfully",
       data: {
         token,
         doctor: {
           id: doctor.id,
           phoneNumber: doctor.phoneNumber,
-          isProfileComplete: !!doctor.fullName
-        }
-      }
+          isProfileComplete: !!doctor.fullName,
+        },
+      },
     });
   } catch (error) {
     res.status(400).json({
       success: false,
-      message: 'OTP validation failed',
-      error: error.message
+      message: "OTP validation failed",
+      error: error.message,
     });
   }
 });
@@ -197,14 +201,14 @@ router.post('/validate-otp', async (req, res) => {
  *       200:
  *         description: Check successful
  */
-router.post('/check-exists', async (req, res) => {
+router.post("/check-exists", async (req, res) => {
   try {
     const { phoneNumber } = req.body;
 
     if (!phoneNumber) {
       return res.status(400).json({
         success: false,
-        message: 'Phone number is required'
+        message: "Phone number is required",
       });
     }
 
@@ -213,17 +217,19 @@ router.post('/check-exists', async (req, res) => {
     res.json({
       success: true,
       exists: !!doctor,
-      data: doctor ? {
-        id: doctor.id,
-        phoneNumber: doctor.phoneNumber,
-        isProfileComplete: !!doctor.fullName
-      } : null
+      data: doctor
+        ? {
+            id: doctor.id,
+            phoneNumber: doctor.phoneNumber,
+            isProfileComplete: !!doctor.fullName,
+          }
+        : null,
     });
   } catch (error) {
     res.status(400).json({
       success: false,
-      message: 'Check failed',
-      error: error.message
+      message: "Check failed",
+      error: error.message,
     });
   }
 });
@@ -261,7 +267,7 @@ router.post('/check-exists', async (req, res) => {
  *       401:
  *         description: Unauthorized
  */
-router.put('/personal-details', auth, async (req, res) => {
+router.put("/personal-details", auth, async (req, res) => {
   try {
     const { fullName, email, gender, dob, profilePhoto } = req.body;
     const doctorId = req.user.id;
@@ -272,7 +278,7 @@ router.put('/personal-details', auth, async (req, res) => {
     if (!doctor) {
       return res.status(404).json({
         success: false,
-        message: 'Doctor not found'
+        message: "Doctor not found",
       });
     }
 
@@ -282,12 +288,12 @@ router.put('/personal-details', auth, async (req, res) => {
       email: email || doctor.email,
       gender: gender || doctor.gender,
       dob: dob || doctor.dob,
-      profilePhoto: profilePhoto || doctor.profilePhoto
+      profilePhoto: profilePhoto || doctor.profilePhoto,
     });
 
     res.json({
       success: true,
-      message: 'Personal details updated successfully',
+      message: "Personal details updated successfully",
       data: {
         id: updatedDoctor.id,
         fullName: updatedDoctor.fullName,
@@ -297,14 +303,14 @@ router.put('/personal-details', auth, async (req, res) => {
         dob: updatedDoctor.dob,
         profilePhoto: updatedDoctor.profilePhoto,
         status: updatedDoctor.status,
-        emailVerified: updatedDoctor.emailVerified
-      }
+        emailVerified: updatedDoctor.emailVerified,
+      },
     });
   } catch (error) {
     res.status(400).json({
       success: false,
-      message: 'Failed to update personal details',
-      error: error.message
+      message: "Failed to update personal details",
+      error: error.message,
     });
   }
 });
@@ -355,7 +361,7 @@ router.put('/personal-details', auth, async (req, res) => {
  *       401:
  *         description: Unauthorized
  */
-router.post('/professional-details', auth, async (req, res) => {
+router.post("/professional-details", auth, async (req, res) => {
   try {
     const {
       qualification,
@@ -367,18 +373,20 @@ router.post('/professional-details', auth, async (req, res) => {
       clinicName,
       yearsOfExperience,
       communicationLanguages,
-      consultationFees
+      consultationFees,
     } = req.body;
-    
+
     const doctorId = req.user.id;
 
     // Find or create professional details
-    let professional = await DoctorProfessional.findOne({ where: { doctorId } });
+    let professional = await DoctorProfessional.findOne({
+      where: { doctorId },
+    });
 
     if (!professional) {
       professional = await DoctorProfessional.create({
         doctorId,
-        status: 'Pending Verification'
+        status: "Pending Verification",
       });
     }
 
@@ -392,21 +400,22 @@ router.post('/professional-details', auth, async (req, res) => {
       certificates: certificates || professional.certificates,
       clinicName: clinicName || professional.clinicName,
       yearsOfExperience: yearsOfExperience || professional.yearsOfExperience,
-      communicationLanguages: communicationLanguages || professional.communicationLanguages,
+      communicationLanguages:
+        communicationLanguages || professional.communicationLanguages,
       consultationFees: consultationFees || professional.consultationFees,
-      status: 'Pending Verification'
+      status: "Pending Verification",
     });
 
     res.json({
       success: true,
-      message: 'Professional details updated successfully',
-      data: professional
+      message: "Professional details updated successfully",
+      data: professional,
     });
   } catch (error) {
     res.status(400).json({
       success: false,
-      message: 'Failed to update professional details',
-      error: error.message
+      message: "Failed to update professional details",
+      error: error.message,
     });
   }
 });
@@ -425,35 +434,37 @@ router.post('/professional-details', auth, async (req, res) => {
  *       401:
  *         description: Unauthorized
  */
-router.get('/profile', auth, async (req, res) => {
+router.get("/profile", auth, async (req, res) => {
   try {
     const doctorId = req.user.id;
 
     // Find doctor with professional details
     const doctor = await DoctorPersonal.findByPk(doctorId, {
-      attributes: { exclude: ['password'] },
-      include: [{
-        model: DoctorProfessional,
-        attributes: { exclude: ['id', 'doctorId'] }
-      }]
+      attributes: { exclude: ["password"] },
+      include: [
+        {
+          model: DoctorProfessional,
+          attributes: { exclude: ["id", "doctorId"] },
+        },
+      ],
     });
 
     if (!doctor) {
       return res.status(404).json({
         success: false,
-        message: 'Doctor not found'
+        message: "Doctor not found",
       });
     }
 
     res.json({
       success: true,
-      data: doctor
+      data: doctor,
     });
   } catch (error) {
     res.status(400).json({
       success: false,
-      message: 'Error fetching profile',
-      error: error.message
+      message: "Error fetching profile",
+      error: error.message,
     });
   }
 });
@@ -483,7 +494,7 @@ router.get('/profile', auth, async (req, res) => {
  *       401:
  *         description: Unauthorized
  */
-router.put('/verify-email', auth, async (req, res) => {
+router.put("/verify-email", auth, async (req, res) => {
   try {
     const { email } = req.body;
     const doctorId = req.user.id;
@@ -494,35 +505,35 @@ router.put('/verify-email', auth, async (req, res) => {
     if (!doctor) {
       return res.status(404).json({
         success: false,
-        message: 'Doctor not found'
+        message: "Doctor not found",
       });
     }
 
     // Update email (in a real app, you would send a verification email)
     await doctor.update({
-      email: email || doctor.email
+      email: email || doctor.email,
     });
 
     // For demo purposes, just mark it as verified
     // In a real app, this would be done through a verification link
     await doctor.update({
-      emailVerified: true
+      emailVerified: true,
     });
 
     res.json({
       success: true,
-      message: 'Email verified successfully',
+      message: "Email verified successfully",
       data: {
         id: doctor.id,
         email: doctor.email,
-        emailVerified: doctor.emailVerified
-      }
+        emailVerified: doctor.emailVerified,
+      },
     });
   } catch (error) {
     res.status(400).json({
       success: false,
-      message: 'Failed to verify email',
-      error: error.message
+      message: "Failed to verify email",
+      error: error.message,
     });
   }
 });
@@ -542,35 +553,37 @@ router.put('/verify-email', auth, async (req, res) => {
  *       200:
  *         description: List of doctors retrieved successfully
  */
-router.get('/', async (req, res) => {
+router.get("/", async (req, res) => {
   try {
     const { specialization } = req.query;
-    const whereProf = { status: 'Verified' };
-    
+    const whereProf = { status: "Verified" };
+
     if (specialization) {
       whereProf.specialization = specialization;
     }
 
     // Find all verified doctors
     const doctors = await DoctorPersonal.findAll({
-      attributes: { exclude: ['password'] },
-      include: [{
-        model: DoctorProfessional,
-        where: whereProf,
-        attributes: { exclude: ['id'] }
-      }]
+      attributes: { exclude: ["password"] },
+      include: [
+        {
+          model: DoctorProfessional,
+          where: whereProf,
+          attributes: { exclude: ["id"] },
+        },
+      ],
     });
 
     res.json({
       success: true,
       count: doctors.length,
-      data: doctors
+      data: doctors,
     });
   } catch (error) {
     res.status(400).json({
       success: false,
-      message: 'Error fetching doctors',
-      error: error.message
+      message: "Error fetching doctors",
+      error: error.message,
     });
   }
 });
