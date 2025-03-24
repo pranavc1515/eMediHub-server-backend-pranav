@@ -35,9 +35,19 @@ router.post('/register-new', async (req, res) => {
         message: 'Phone number is required'
       });
     }
+
+    // First check if user exists
+    const userExistsResult = await userController.checkUserExists(phone);
     
-    const result = await userController.registerNewUser(phone);
-    res.json(result);
+    if (userExistsResult.success && userExistsResult.data.exists) {
+      // If user exists, proceed with login
+      const loginResult = await userController.doLogin(phone);
+      return res.json(loginResult);
+    } else {
+      // If user doesn't exist, proceed with registration
+      const result = await userController.registerNewUser(phone);
+      res.json(result);
+    }
   } catch (error) {
     res.status(400).json({
       success: false,
@@ -343,48 +353,6 @@ router.post('/medical-details', async (req, res) => {
   }
 });
 
-/**
- * @swagger
- * /api/users/do-login:
- *   post:
- *     summary: Login user with username (Proxy to 3rd party API)
- *     tags: [Users]
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             required:
- *               - username
- *             properties:
- *               username:
- *                 type: string
- *     responses:
- *       200:
- *         description: Success response from 3rd party API
- *       400:
- *         description: Error response from 3rd party API
- */
-router.post('/do-login', async (req, res) => {
-  try {
-    const { username } = req.body;
-    
-    if (!username) {
-      return res.status(400).json({
-        success: false,
-        message: 'Username is required'
-      });
-    }
-    
-    const result = await userController.doLogin(username);
-    res.json(result);
-  } catch (error) {
-    res.status(400).json({
-      success: false,
-      message: error.message
-    });
-  }
-});
 
-module.exports = router; 
+
+module.exports = router;

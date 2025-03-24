@@ -1,17 +1,7 @@
 const express = require("express");
 const router = express.Router();
-const jwt = require("jsonwebtoken");
-const bcrypt = require("bcryptjs");
-const {
-  DoctorPersonal,
-  DoctorProfessional,
-} = require("../models/doctor.model");
 const { auth } = require("../middleware/auth.middleware");
-
-// Utility function to generate a random 6-digit OTP
-const generateOTP = () => {
-  return Math.floor(100000 + Math.random() * 900000).toString();
-};
+const doctorController = require("../controllers/doctor.controller");
 
 /**
  * @swagger
@@ -44,47 +34,12 @@ router.post("/register", async (req, res) => {
   try {
     const { phoneNumber } = req.body;
 
-    // Validate phone number format (10 digits)
-    if (!phoneNumber || !/^\+91[0-9]{10}$/.test(phoneNumber)) {
-      return res.status(400).json({
-        success: false,
-        message:
-          "Invalid phone number format. Please provide a valid phone number with the country code +91 (e.g., +919876543210).",
-      });
-    }
-
-    // Check if doctor already exists
-    let doctor = await DoctorPersonal.findOne({ where: { phoneNumber } });
-
-    if (!doctor) {
-      // Create new doctor if not exists
-      doctor = await DoctorPersonal.create({
-        phoneNumber,
-        status: "Active",
-      });
-
-      // Create an empty professional record for the doctor
-      await DoctorProfessional.create({
-        doctorId: doctor.id,
-        status: "Pending Verification",
-      });
-    }
-
-    // Generate OTP
-    const otp = generateOTP();
-
-    // For demo purposes, using 111111 as the OTP
-    // In production:
-    // 1. Store OTP in database/redis with expiry
-    // 2. Implement rate limiting for OTP generation
-    // 3. Send OTP via SMS gateway
+    const result = await doctorController.registerDoctor(phoneNumber);
 
     res.json({
       success: true,
       message: "OTP sent successfully",
-      data: {
-        phoneNumber,
-      },
+      data: result,
     });
   } catch (error) {
     res.status(400).json({
@@ -134,44 +89,28 @@ router.post("/validate-otp", async (req, res) => {
       });
     }
 
-    // Find doctor by phone number
-    const doctor = await DoctorPersonal.findOne({ where: { phoneNumber } });
-
-    if (!doctor) {
-      return res.status(404).json({
-        success: false,
-        message: "Doctor not found",
-      });
-    }
-
-    // For demo purposes, accept 111111 as valid OTP
-    if (otp !== "1111") {
-      return res.status(400).json({
-        success: false,
-        message: "Invalid OTP",
-      });
-    }
-
-    // Generate JWT token
-    const token = jwt.sign(
-      { id: doctor.id, phoneNumber: doctor.phoneNumber, type: "doctor" },
-      process.env.JWT_SECRET,
-      { expiresIn: process.env.JWT_EXPIRES_IN }
-    );
+    const result = await doctorController.validateOTP(phoneNumber, otp);
 
     res.json({
       success: true,
       message: "OTP validated successfully",
-      data: {
-        token,
-        doctor: {
-          id: doctor.id,
-          phoneNumber: doctor.phoneNumber,
-          isProfileComplete: !!doctor.fullName,
-        },
-      },
+      data: result,
     });
   } catch (error) {
+    if (error.message.includes('not found')) {
+      return res.status(404).json({
+        success: false,
+        message: error.message,
+      });
+    }
+
+    if (error.message.includes('Invalid OTP')) {
+      return res.status(400).json({
+        success: false,
+        message: error.message,
+      });
+    }
+
     res.status(400).json({
       success: false,
       message: "OTP validation failed",
@@ -212,18 +151,12 @@ router.post("/check-exists", async (req, res) => {
       });
     }
 
-    const doctor = await DoctorPersonal.findOne({ where: { phoneNumber } });
+    const result = await doctorController.checkDoctorExists(phoneNumber);
 
     res.json({
       success: true,
-      exists: !!doctor,
-      data: doctor
-        ? {
-          id: doctor.id,
-          phoneNumber: doctor.phoneNumber,
-          isProfileComplete: !!doctor.fullName,
-        }
-        : null,
+      exists: result.exists,
+      data: result.data,
     });
   } catch (error) {
     res.status(400).json({
@@ -368,19 +301,16 @@ router.put("/personal-details/:id", auth, async (req, res) => {
     res.json({
       success: true,
       message: "Personal details updated successfully",
-      data: {
-        id: updatedDoctor.id,
-        fullName: updatedDoctor.fullName,
-        phoneNumber: updatedDoctor.phoneNumber,
-        email: updatedDoctor.email,
-        gender: updatedDoctor.gender,
-        dob: updatedDoctor.dob,
-        profilePhoto: updatedDoctor.profilePhoto,
-        status: updatedDoctor.status,
-        emailVerified: updatedDoctor.emailVerified,
-      },
+      data: updatedDoctor,
     });
   } catch (error) {
+    if (error.message.includes('not found')) {
+      return res.status(404).json({
+        success: false,
+        message: error.message,
+      });
+    }
+
     res.status(400).json({
       success: false,
       message: "Failed to update personal details",
@@ -728,5 +658,107 @@ router.get("/", async (req, res) => {
     });
   }
 });
+
+/**
+ * @swagger
+ * /api/doctors/online-status:
+ *   put:
+ *     summary: Update doctor's online status
+ *     tags: [Doctors]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - status
+ *             properties:
+ *               status:
+ *                 type: string
+ *                 enum: [available, offline]
+ *     responses:
+ *       200:
+ *         description: Status updated successfully
+ *       400:
+ *         description: Invalid status
+ *       401:
+ *         description: Unauthorized
+ */
+router.put("/online-status", auth, async (req, res) => {
+  try {
+    const { status } = req.body;
+    const doctorId = req.user.id;
+
+    if (!status || !['available', 'offline'].includes(status)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid status. Status must be 'available' or 'offline'",
+      });
+    }
+
+    const result = await doctorController.updateOnlineStatus(doctorId, status);
+
+    res.json({
+      success: true,
+      message: "Online status updated successfully",
+      data: result,
+    });
+  } catch (error) {
+    res.status(400).json({
+      success: false,
+      message: "Failed to update online status",
+      error: error.message,
+    });
+  }
+});
+
+/**
+ * @swagger
+ * /api/doctors/{id}/online-status:
+ *   get:
+ *     summary: Get doctor's online status
+ *     tags: [Doctors]
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Status retrieved successfully
+ *       404:
+ *         description: Doctor not found
+ */
+router.get("/:id/online-status", async (req, res) => {
+  try {
+    const doctorId = req.params.id;
+
+    const result = await doctorController.getOnlineStatus(doctorId);
+
+    res.json({
+      success: true,
+      data: result,
+    });
+  } catch (error) {
+    if (error.message.includes('not found')) {
+      return res.status(404).json({
+        success: false,
+        message: error.message,
+      });
+    }
+
+    res.status(400).json({
+      success: false,
+      message: "Failed to get online status",
+      error: error.message,
+    });
+  }
+});
+
+module.exports = router;
 
 module.exports = router;

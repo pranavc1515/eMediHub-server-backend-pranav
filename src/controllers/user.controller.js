@@ -14,6 +14,11 @@ const registerNewUser = async (phone) => {
     
     return response.data;
   } catch (error) {
+    // If user already exists, automatically trigger login flow
+    if (error.response?.data?.message === 'User already registered with this phone number.') {
+      const loginResponse = await doLogin(phone);
+      return { ...loginResponse, userExists: true };
+    }
     throw new Error(error.response?.data?.message || 'Error registering user');
   }
 };
@@ -151,4 +156,4 @@ module.exports = {
   verifyEmail,
   updateMedicalDetails,
   doLogin
-}; 
+};
