@@ -236,12 +236,19 @@ router.post("/check-exists", async (req, res) => {
 
 /**
  * @swagger
- * /api/doctors/personal-details:
+ * /api/doctors/personal-details/{id}:
  *   put:
  *     summary: Update doctor's personal details
  *     tags: [Doctors]
  *     security:
  *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         description: Doctor's ID
  *     requestBody:
  *       required: true
  *       content:
@@ -251,26 +258,93 @@ router.post("/check-exists", async (req, res) => {
  *             properties:
  *               fullName:
  *                 type: string
+ *                 description: Full name of the doctor
  *               email:
  *                 type: string
+ *                 format: email
+ *                 description: Email address of the doctor
  *               gender:
  *                 type: string
  *                 enum: [Male, Female, Other]
+ *                 description: Gender of the doctor
  *               dob:
  *                 type: string
  *                 format: date
+ *                 description: Date of birth (YYYY-MM-DD)
  *               profilePhoto:
  *                 type: string
+ *                 description: URL of the profile photo
  *     responses:
  *       200:
  *         description: Personal details updated successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: "Personal details updated successfully"
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     id:
+ *                       type: integer
+ *                       example: 1
+ *                     fullName:
+ *                       type: string
+ *                       example: "Dr. John Doe"
+ *                     phoneNumber:
+ *                       type: string
+ *                       example: "+919876543210"
+ *                     email:
+ *                       type: string
+ *                       example: "john.doe@example.com"
+ *                     gender:
+ *                       type: string
+ *                       example: "Male"
+ *                     dob:
+ *                       type: string
+ *                       example: "1980-01-01"
+ *                     profilePhoto:
+ *                       type: string
+ *                       example: "https://example.com/photos/doctor.jpg"
+ *                     status:
+ *                       type: string
+ *                       example: "Active"
+ *                     emailVerified:
+ *                       type: boolean
+ *                       example: true
  *       401:
- *         description: Unauthorized
+ *         description: Unauthorized - Invalid or missing authentication token
+ *       403:
+ *         description: Forbidden - User not authorized to update this doctor's profile
+ *       404:
+ *         description: Doctor not found
  */
-router.put("/personal-details", auth, async (req, res) => {
+router.put("/personal-details/:id", auth, async (req, res) => {
   try {
     const { fullName, email, gender, dob, profilePhoto } = req.body;
-    const doctorId = req.user.id;
+    const doctorId = parseInt(req.params.id);
+
+    // Check if the authenticated user is a doctor
+    if (!req.user || !req.user.id) {
+      return res.status(401).json({
+        success: false,
+        message: 'Authentication required'
+      });
+    }
+
+    // Doctors can only update their own profile
+    if (req.user.id !== doctorId) {
+      return res.status(403).json({
+        success: false,
+        message: 'You can only update your own profile'
+      });
+    }
 
     // Find doctor
     const doctor = await DoctorPersonal.findByPk(doctorId);
@@ -317,12 +391,19 @@ router.put("/personal-details", auth, async (req, res) => {
 
 /**
  * @swagger
- * /api/doctors/professional-details:
- *   post:
+ * /api/doctors/professional-details/{id}:
+ *   put:
  *     summary: Update doctor's professional details
  *     tags: [Doctors]
  *     security:
  *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         description: Doctor's ID
  *     requestBody:
  *       required: true
  *       content:
@@ -358,10 +439,27 @@ router.put("/personal-details", auth, async (req, res) => {
  *     responses:
  *       200:
  *         description: Professional details updated successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: "Professional details updated successfully"
+ *                 data:
+ *                   type: object
  *       401:
  *         description: Unauthorized
+ *       403:
+ *         description: Forbidden - User not authorized to update this doctor's profile
+ *       404:
+ *         description: Doctor not found
  */
-router.post("/professional-details", auth, async (req, res) => {
+router.put("/professional-details/:id", auth, async (req, res) => {
   try {
     const {
       qualification,
@@ -376,17 +474,31 @@ router.post("/professional-details", auth, async (req, res) => {
       consultationFees,
     } = req.body;
 
-    const doctorId = req.user.id;
+    const doctorId = parseInt(req.params.id);
+
+    // Check if the authenticated user is a doctor
+    if (!req.user || !req.user.id) {
+      return res.status(401).json({
+        success: false,
+        message: 'Authentication required'
+      });
+    }
+
+    // Doctors can only update their own profile
+    if (req.user.id !== doctorId) {
+      return res.status(403).json({
+        success: false,
+        message: 'You can only update your own profile'
+      });
+    }
 
     // Find or create professional details
-    let professional = await DoctorProfessional.findOne({
-      where: { doctorId },
-    });
+    let professional = await DoctorProfessional.findOne({ where: { doctorId } });
 
     if (!professional) {
       professional = await DoctorProfessional.create({
         doctorId,
-        status: "Pending Verification",
+        status: 'Pending Verification'
       });
     }
 
@@ -400,22 +512,21 @@ router.post("/professional-details", auth, async (req, res) => {
       certificates: certificates || professional.certificates,
       clinicName: clinicName || professional.clinicName,
       yearsOfExperience: yearsOfExperience || professional.yearsOfExperience,
-      communicationLanguages:
-        communicationLanguages || professional.communicationLanguages,
+      communicationLanguages: communicationLanguages || professional.communicationLanguages,
       consultationFees: consultationFees || professional.consultationFees,
-      status: "Pending Verification",
+      status: 'Pending Verification'
     });
 
     res.json({
       success: true,
-      message: "Professional details updated successfully",
-      data: professional,
+      message: 'Professional details updated successfully',
+      data: professional
     });
   } catch (error) {
     res.status(400).json({
       success: false,
-      message: "Failed to update professional details",
-      error: error.message,
+      message: 'Failed to update professional details',
+      error: error.message
     });
   }
 });
