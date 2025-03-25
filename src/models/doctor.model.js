@@ -165,8 +165,8 @@ DoctorPersonal.prototype.validatePassword = async function(password) {
 // Set up the models for database synchronization
 const syncModels = async () => {
   try {
-    await DoctorPersonal.sync();
-    await DoctorProfessional.sync();
+    await DoctorPersonal.sync({ alter: true });
+    await DoctorProfessional.sync({ alter: true });
     console.log('Doctor tables synchronized successfully');
   } catch (error) {
     console.error('Error syncing doctor tables:', error);

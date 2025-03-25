@@ -2,6 +2,7 @@ const express = require("express");
 const router = express.Router();
 const { auth } = require("../middleware/auth.middleware");
 const doctorController = require("../controllers/doctor.controller");
+const { DoctorPersonal, DoctorProfessional } = require("../models/doctor.model");
 
 /**
  * @swagger
@@ -758,7 +759,5 @@ router.get("/:id/online-status", async (req, res) => {
     });
   }
 });
-
-module.exports = router;
 
 module.exports = router;
