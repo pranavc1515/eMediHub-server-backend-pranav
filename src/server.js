@@ -17,6 +17,7 @@ const userRoutes = require('./routes/user.routes');
 const doctorRoutes = require('./routes/doctor.routes');
 const patientRoutes = require('./routes/patient.routes');
 const adminRoutes = require('./routes/admin.routes');
+const videoRoutes = require('./routes/video.routes');
 
 const app = express();
 
@@ -87,6 +88,7 @@ app.use('/api/users', userRoutes);
 app.use('/api/doctors', doctorRoutes);
 app.use('/api/patients', patientRoutes);
 app.use('/api/admin', adminRoutes);
+app.use('/api/video', videoRoutes);
 
 // Error handling middleware
 app.use((err, req, res, next) => {

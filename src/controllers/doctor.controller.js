@@ -35,7 +35,7 @@ const registerDoctor = async (phoneNumber) => {
     // Generate OTP
     const otp = generateOTP();
 
-    // For demo purposes, using 1111 as the OTP
+    // For demo purposes, using 111111 as the OTP
     // In production:
     // 1. Store OTP in database/redis with expiry
     // 2. Implement rate limiting for OTP generation
@@ -63,8 +63,8 @@ const validateOTP = async (phoneNumber, otp) => {
       throw new Error('Doctor not found');
     }
 
-    // For demo purposes, accept 1111 as valid OTP
-    if (otp !== "1111") {
+    // For demo purposes, accept 111111 as valid OTP
+    if (otp !== "111111") {
       throw new Error('Invalid OTP');
     }
 
