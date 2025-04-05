@@ -760,4 +760,59 @@ router.get("/:id/online-status", async (req, res) => {
   }
 });
 
+/**
+ * @swagger
+ * /api/doctors/available:
+ *   get:
+ *     summary: Get all verified doctors who are online and available
+ *     tags: [Doctors]
+ *     parameters:
+ *       - in: query
+ *         name: specialization
+ *         schema:
+ *           type: string
+ *         description: Filter doctors by specialization
+ *     responses:
+ *       200:
+ *         description: List of available doctors retrieved successfully
+ *       400:
+ *         description: Error fetching available doctors
+ */
+router.get("/available", async (req, res) => {
+  try {
+    const { specialization } = req.query;
+    const whereProf = { status: "Verified" };
+    const wherePers = { isOnline: "available" };
+
+    if (specialization) {
+      whereProf.specialization = specialization;
+    }
+
+    // Find all verified doctors who are online and available
+    const doctors = await DoctorPersonal.findAll({
+      where: wherePers,
+      attributes: { exclude: ["password"] },
+      include: [
+        {
+          model: DoctorProfessional,
+          where: whereProf,
+          attributes: { exclude: ["id"] },
+        },
+      ],
+    });
+
+    res.json({
+      success: true,
+      count: doctors.length,
+      data: doctors,
+    });
+  } catch (error) {
+    res.status(400).json({
+      success: false,
+      message: "Error fetching available doctors",
+      error: error.message,
+    });
+  }
+});
+
 module.exports = router;
