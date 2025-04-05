@@ -18,6 +18,8 @@ const doctorRoutes = require('./routes/doctor.routes');
 const patientRoutes = require('./routes/patient.routes');
 const adminRoutes = require('./routes/admin.routes');
 const videoRoutes = require('./routes/video.routes');
+const patientConsultationRoutes = require('./routes/patient/consultation.routes');
+const doctorConsultationRoutes = require('./routes/doctor/consultation.routes');
 
 const app = express();
 
@@ -76,7 +78,7 @@ const swaggerOptions = {
       bearerAuth: []
     }]
   },
-  apis: ['./src/routes/*.js'], // Path to the API routes
+  apis: ['./src/routes/*.js', './src/routes/*/*.js'], // Path to the API routes, including nested routes
 };
 
 const swaggerDocs = swaggerJsDoc(swaggerOptions);
@@ -89,6 +91,8 @@ app.use('/api/doctors', doctorRoutes);
 app.use('/api/patients', patientRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/video', videoRoutes);
+app.use('/api/consultation', patientConsultationRoutes);
+app.use('/api/doctor', doctorConsultationRoutes);
 
 // Error handling middleware
 app.use((err, req, res, next) => {
