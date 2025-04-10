@@ -212,7 +212,7 @@ router.get('/profile-details', async (req, res) => {
         message: 'Authorization header is required'
       });
     }
-    
+    console.log("header",authHeader);
     const result = await userController.getProfileDetails(authHeader);
     res.json(result);
   } catch (error) {

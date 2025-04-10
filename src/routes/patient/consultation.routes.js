@@ -76,7 +76,7 @@ const useAuth = process.env.NODE_ENV === 'production' ? authenticateToken : (req
 router.post('/book', useAuth, consultationController.bookConsultation);
 
 /**
- * @swagger
+//  * @swagger
  * /api/consultation/upcoming:
  *   get:
  *     summary: Get patient's upcoming consultations
@@ -105,7 +105,7 @@ router.post('/book', useAuth, consultationController.bookConsultation);
  *       500:
  *         description: Server error
  */
-router.get('/upcoming', useAuth, consultationController.getUpcomingConsultations);
+// router.get('/upcoming', useAuth, consultationController.getUpcomingConsultations);
 
 /**
  * @swagger
