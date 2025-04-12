@@ -20,6 +20,7 @@ const adminRoutes = require('./routes/admin.routes');
 const videoRoutes = require('./routes/video.routes');
 const patientConsultationRoutes = require('./routes/patient/consultation.routes');
 const doctorConsultationRoutes = require('./routes/doctor/consultation.routes');
+const paymentRoutes = require('./routes/payment.routes');
 
 const app = express();
 
@@ -38,7 +39,7 @@ app.use((req, res, next) => {
   res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS, PATCH');
   res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, Accept, Origin');
   res.header('Access-Control-Allow-Credentials', true);
-  
+
   // Handle OPTIONS method
   if (req.method === 'OPTIONS') {
     return res.sendStatus(200);
@@ -93,6 +94,7 @@ app.use('/api/admin', adminRoutes);
 app.use('/api/video', videoRoutes);
 app.use('/api/consultation', patientConsultationRoutes);
 app.use('/api/doctor', doctorConsultationRoutes);
+app.use('/api/payment', paymentRoutes);
 
 // Error handling middleware
 app.use((err, req, res, next) => {
@@ -117,4 +119,4 @@ db.authenticate()
   })
   .catch((err) => {
     console.error('Unable to connect to the database:', err);
-  }); 
+  });
