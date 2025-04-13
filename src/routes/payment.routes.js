@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const paymentController = require('../controllers/payment.controller');
 const { auth } = require('../middleware/auth.middleware');
+// Authentication middleware removed to allow unauthenticated access
 
 /**
  * @swagger
@@ -62,7 +63,7 @@ const { auth } = require('../middleware/auth.middleware');
  *       500:
  *         description: Server error while creating order
  */
-router.post('/create-order', auth, paymentController.createOrder);
+router.post('/create-order', paymentController.createOrder);
 
 /**
  * @swagger
@@ -113,7 +114,7 @@ router.post('/create-order', auth, paymentController.createOrder);
  *       500:
  *         description: Server error while verifying payment
  */
-router.post('/verify-payment', auth, paymentController.verifyPayment);
+router.post('/verify-payment', paymentController.verifyPayment);
 
 /**
  * @swagger
@@ -165,6 +166,6 @@ router.post('/verify-payment', auth, paymentController.verifyPayment);
  *       500:
  *         description: Server error while fetching payment details
  */
-router.get('/details/:paymentId', auth, paymentController.getPaymentDetails);
+router.get('/details/:paymentId', paymentController.getPaymentDetails);
 
 module.exports = router;
