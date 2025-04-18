@@ -1,6 +1,7 @@
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
 const { DoctorPersonal, DoctorProfessional } = require('../models/doctor.model');
+const { Op } = require('sequelize');
 
 // Utility function to generate a random 6-digit OTP
 const generateOTP = () => {
@@ -247,6 +248,124 @@ const getOnlineStatus = async (doctorId) => {
   }
 };
 
+// Get all verified doctors with pagination and search
+const getAllDoctors = async (page = 1, limit = 15, searchQuery = '', specialization = '') => {
+  try {
+    const offset = (page - 1) * limit;
+    const whereProf = { status: "Verified" };
+    const wherePers = {};
+
+    // Add specialization filter if provided
+    if (specialization) {
+      whereProf.specialization = specialization;
+    }
+
+    // Add name search if provided
+    if (searchQuery) {
+      wherePers.fullName = {
+        [Op.like]: `%${searchQuery}%`
+      };
+    }
+
+    // Get total count for pagination
+    const totalCount = await DoctorPersonal.count({
+      where: wherePers,
+      include: [
+        {
+          model: DoctorProfessional,
+          where: whereProf,
+          attributes: []
+        }
+      ]
+    });
+
+    // Get doctors with pagination
+    const doctors = await DoctorPersonal.findAll({
+      where: wherePers,
+      attributes: { exclude: ["password"] },
+      include: [
+        {
+          model: DoctorProfessional,
+          where: whereProf,
+          attributes: { exclude: ["id"] }
+        }
+      ],
+      offset,
+      limit,
+      order: [['fullName', 'ASC']]
+    });
+
+    return {
+      doctors,
+      totalCount,
+      totalPages: Math.ceil(totalCount / limit),
+      currentPage: page,
+      pageSize: limit
+    };
+  } catch (error) {
+    throw new Error(`Error fetching doctors: ${error.message}`);
+  }
+};
+
+// Get available doctors with pagination and search
+const getAvailableDoctors = async (page = 1, limit = 15, searchQuery = '', specialization = '') => {
+  try {
+    const offset = (page - 1) * limit;
+    const whereProf = { status: "Verified" };
+    const wherePers = { isOnline: "available" };
+
+    // Add specialization filter if provided
+    if (specialization) {
+      whereProf.specialization = specialization;
+    }
+
+    // Add name search if provided
+    if (searchQuery) {
+      wherePers.fullName = {
+        [Op.like]: `%${searchQuery}%`
+      };
+    }
+
+    // Get total count for pagination
+    const totalCount = await DoctorPersonal.count({
+      where: wherePers,
+      include: [
+        {
+          model: DoctorProfessional,
+          where: whereProf,
+          attributes: []
+        }
+      ]
+    });
+
+    // Get available doctors with pagination
+    const doctors = await DoctorPersonal.findAll({
+      where: wherePers,
+      attributes: { exclude: ["password"] },
+      include: [
+        {
+          model: DoctorProfessional,
+          where: whereProf,
+          attributes: { exclude: ["id"] }
+        }
+      ],
+      offset,
+      limit,
+      order: [['fullName', 'ASC']]
+    });
+
+    return {
+      doctors,
+      totalCount,
+      totalPages: Math.ceil(totalCount / limit),
+      currentPage: page,
+      pageSize: limit
+    };
+  } catch (error) {
+    throw new Error(`Error fetching available doctors: ${error.message}`);
+  }
+};
+
 // Export all doctor controller functions
 module.exports = {
   registerDoctor,
@@ -255,5 +374,7 @@ module.exports = {
   updatePersonalDetails,
   updateProfessionalDetails,
   updateOnlineStatus,
-  getOnlineStatus
+  getOnlineStatus,
+  getAllDoctors,
+  getAvailableDoctors
 };

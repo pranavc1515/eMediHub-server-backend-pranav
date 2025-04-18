@@ -614,42 +614,53 @@ router.put("/verify-email", auth, async (req, res) => {
  * @swagger
  * /api/doctors:
  *   get:
- *     summary: Get all verified doctors
+ *     summary: Get all verified doctors with pagination and search
  *     tags: [Doctors]
  *     parameters:
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *           default: 1
+ *         description: Page number for pagination
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           default: 15
+ *         description: Number of records per page
+ *       - in: query
+ *         name: search
+ *         schema:
+ *           type: string
+ *         description: Search term for doctor name
  *       - in: query
  *         name: specialization
  *         schema:
  *           type: string
+ *         description: Filter by doctor specialization
  *     responses:
  *       200:
  *         description: List of doctors retrieved successfully
+ *       400:
+ *         description: Error fetching doctors
  */
 router.get("/", async (req, res) => {
   try {
-    const { specialization } = req.query;
-    const whereProf = { status: "Verified" };
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 15;
+    const search = req.query.search || '';
+    const specialization = req.query.specialization || '';
 
-    if (specialization) {
-      whereProf.specialization = specialization;
-    }
-
-    // Find all verified doctors
-    const doctors = await DoctorPersonal.findAll({
-      attributes: { exclude: ["password"] },
-      include: [
-        {
-          model: DoctorProfessional,
-          where: whereProf,
-          attributes: { exclude: ["id"] },
-        },
-      ],
-    });
+    const result = await doctorController.getAllDoctors(page, limit, search, specialization);
 
     res.json({
       success: true,
-      count: doctors.length,
-      data: doctors,
+      count: result.totalCount,
+      totalPages: result.totalPages,
+      currentPage: result.currentPage,
+      pageSize: result.pageSize,
+      data: result.doctors,
     });
   } catch (error) {
     res.status(400).json({
@@ -764,14 +775,31 @@ router.get("/:id/online-status", async (req, res) => {
  * @swagger
  * /api/doctors/available:
  *   get:
- *     summary: Get all verified doctors who are online and available
+ *     summary: Get all verified doctors who are online and available with pagination and search
  *     tags: [Doctors]
  *     parameters:
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *           default: 1
+ *         description: Page number for pagination
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           default: 15
+ *         description: Number of records per page
+ *       - in: query
+ *         name: search
+ *         schema:
+ *           type: string
+ *         description: Search term for doctor name
  *       - in: query
  *         name: specialization
  *         schema:
  *           type: string
- *         description: Filter doctors by specialization
+ *         description: Filter by doctor specialization
  *     responses:
  *       200:
  *         description: List of available doctors retrieved successfully
@@ -780,31 +808,20 @@ router.get("/:id/online-status", async (req, res) => {
  */
 router.get("/available", async (req, res) => {
   try {
-    const { specialization } = req.query;
-    const whereProf = { status: "Verified" };
-    const wherePers = { isOnline: "available" };
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 15;
+    const search = req.query.search || '';
+    const specialization = req.query.specialization || '';
 
-    if (specialization) {
-      whereProf.specialization = specialization;
-    }
-
-    // Find all verified doctors who are online and available
-    const doctors = await DoctorPersonal.findAll({
-      where: wherePers,
-      attributes: { exclude: ["password"] },
-      include: [
-        {
-          model: DoctorProfessional,
-          where: whereProf,
-          attributes: { exclude: ["id"] },
-        },
-      ],
-    });
+    const result = await doctorController.getAvailableDoctors(page, limit, search, specialization);
 
     res.json({
       success: true,
-      count: doctors.length,
-      data: doctors,
+      count: result.totalCount,
+      totalPages: result.totalPages,
+      currentPage: result.currentPage,
+      pageSize: result.pageSize,
+      data: result.doctors,
     });
   } catch (error) {
     res.status(400).json({

@@ -1,4 +1,4 @@
-const { DataTypes } = require('sequelize');
+  const { DataTypes } = require('sequelize');
 const sequelize = require('../config/database');
 const Patient = require('./patient.model');
 const { DoctorPersonal } = require('./doctor.model');
@@ -40,8 +40,8 @@ const Consultation = sequelize.define(
       allowNull: false,
     },
     status: {
-      type: DataTypes.ENUM('scheduled', 'in-progress', 'completed', 'cancelled'),
-      defaultValue: 'scheduled',
+      type: DataTypes.ENUM('pending', 'ongoing', 'completed', 'cancelled'),
+      defaultValue: 'pending',
     },
     consultationType: {
       type: DataTypes.ENUM('video', 'in-person'),
