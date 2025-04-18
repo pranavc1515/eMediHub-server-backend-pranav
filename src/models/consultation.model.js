@@ -1,4 +1,4 @@
-  const { DataTypes } = require('sequelize');
+const { DataTypes } = require('sequelize');
 const sequelize = require('../config/database');
 const Patient = require('./patient.model');
 const { DoctorPersonal } = require('./doctor.model');
@@ -71,6 +71,38 @@ const Consultation = sequelize.define(
       type: DataTypes.DATE,
       allowNull: true,
     },
+    twilioRoomSid: {
+      type: DataTypes.STRING,
+      allowNull: true,
+    },
+    patientSocketId: {
+      type: DataTypes.STRING,
+      allowNull: true,
+    },
+    doctorSocketId: {
+      type: DataTypes.STRING,
+      allowNull: true,
+    },
+    queuePosition: {
+      type: DataTypes.INTEGER,
+      allowNull: true,
+    },
+    estimatedDuration: {
+      type: DataTypes.INTEGER, // in minutes
+      defaultValue: 15,
+    },
+    symptoms: {
+      type: DataTypes.TEXT,
+      allowNull: true,
+    },
+    prescription: {
+      type: DataTypes.TEXT,
+      allowNull: true,
+    },
+    diagnosis: {
+      type: DataTypes.TEXT,
+      allowNull: true,
+    }
   },
   {
     timestamps: true,

@@ -4,6 +4,11 @@ const morgan = require('morgan');
 const swaggerUi = require('swagger-ui-express');
 const swaggerJsDoc = require('swagger-jsdoc');
 const dotenv = require('dotenv');
+const http = require('http');
+const socketIO = require('socket.io');
+
+// Import socket handler
+const setupVideoQueueSocket = require('./socket/videoQueue.socket');
 
 // Load environment variables
 dotenv.config();
@@ -23,6 +28,18 @@ const doctorConsultationRoutes = require('./routes/doctor/consultation.routes');
 const paymentRoutes = require('./routes/payment.routes');
 
 const app = express();
+const server = http.createServer(app);
+
+// Socket.io setup
+const io = socketIO(server, {
+  cors: {
+    origin: '*', // Allow all origins
+    methods: ['GET', 'POST']
+  }
+});
+
+// Setup socket handlers
+setupVideoQueueSocket(io);
 
 // CORS configuration
 app.use(cors({
@@ -112,9 +129,10 @@ const PORT = process.env.PORT || 3000;
 db.authenticate()
   .then(() => {
     console.log('Database connection established successfully.');
-    app.listen(PORT, () => {
+    server.listen(PORT, () => {
       console.log(`Server is running on port ${PORT}`);
       console.log(`Swagger documentation available at http://localhost:${PORT}/api-docs`);
+      console.log(`Socket.io is initialized and ready for connections`);
     });
   })
   .catch((err) => {
