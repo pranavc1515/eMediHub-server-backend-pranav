@@ -50,6 +50,38 @@ const registerDoctor = async (phoneNumber) => {
   }
 };
 
+// Login for existing doctor with phone number
+const loginDoctor = async (phoneNumber) => {
+  try {
+    // Validate phone number format (10 digits)
+    if (!phoneNumber || !/^\+91[0-9]{10}$/.test(phoneNumber)) {
+      throw new Error('Invalid phone number format. Please provide a valid phone number with the country code +91 (e.g., +919876543210).');
+    }
+
+    // Check if doctor exists
+    const doctor = await DoctorPersonal.findOne({ where: { phoneNumber } });
+
+    if (!doctor) {
+      throw new Error('Doctor not found with this phone number');
+    }
+
+    // Generate OTP
+    const otp = generateOTP();
+
+    // For demo purposes, using 111111 as the OTP
+    // In production:
+    // 1. Store OTP in database/redis with expiry
+    // 2. Implement rate limiting for OTP generation
+    // 3. Send OTP via SMS gateway
+
+    return {
+      phoneNumber
+    };
+  } catch (error) {
+    throw new Error(`${error.message}`);
+  }
+};
+
 // Validate OTP and authenticate doctor
 const validateOTP = async (phoneNumber, otp) => {
   try {
@@ -369,6 +401,7 @@ const getAvailableDoctors = async (page = 1, limit = 15, searchQuery = '', speci
 // Export all doctor controller functions
 module.exports = {
   registerDoctor,
+  loginDoctor,
   validateOTP,
   checkDoctorExists,
   updatePersonalDetails,

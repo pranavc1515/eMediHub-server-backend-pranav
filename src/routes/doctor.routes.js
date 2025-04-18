@@ -21,15 +21,44 @@ const { DoctorPersonal, DoctorProfessional } = require("../models/doctor.model")
  *             properties:
  *               phoneNumber:
  *                 type: string
- *                 pattern: '^[0-9]{10}$'
- *                 description: 10-digit phone number
+ *                 pattern: '^\+91[0-9]{10}$'
+ *                 description: Phone number with country code +91 followed by 10 digits
  *     responses:
  *       200:
  *         description: OTP sent successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: "OTP sent successfully"
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     phoneNumber:
+ *                       type: string
+ *                       example: "+919876543210"
  *       400:
  *         description: Invalid input data
- *       429:
- *         description: Too many requests
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: false
+ *                 message:
+ *                   type: string
+ *                   example: "Registration failed"
+ *                 error:
+ *                   type: string
+ *                   example: "Invalid phone number format"
  */
 router.post("/register", async (req, res) => {
   try {
@@ -53,6 +82,102 @@ router.post("/register", async (req, res) => {
 
 /**
  * @swagger
+ * /api/doctors/login:
+ *   post:
+ *     summary: Login for existing doctor with phone number
+ *     tags: [Doctors]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - phoneNumber
+ *             properties:
+ *               phoneNumber:
+ *                 type: string
+ *                 pattern: '^\+91[0-9]{10}$'
+ *                 description: Phone number with country code +91 followed by 10 digits
+ *     responses:
+ *       200:
+ *         description: OTP sent successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: "OTP sent successfully"
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     phoneNumber:
+ *                       type: string
+ *                       example: "+919876543210"
+ *       400:
+ *         description: Invalid input data
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: false
+ *                 message:
+ *                   type: string
+ *                   example: "Login failed"
+ *                 error:
+ *                   type: string
+ *                   example: "Invalid phone number format"
+ *       404:
+ *         description: Doctor not found
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: false
+ *                 message:
+ *                   type: string
+ *                   example: "Doctor not found with this phone number"
+ */
+router.post("/login", async (req, res) => {
+  try {
+    const { phoneNumber } = req.body;
+
+    const result = await doctorController.loginDoctor(phoneNumber);
+
+    res.json({
+      success: true,
+      message: "OTP sent successfully",
+      data: result,
+    });
+  } catch (error) {
+    if (error.message.includes('not found')) {
+      return res.status(404).json({
+        success: false,
+        message: error.message,
+      });
+    }
+    
+    res.status(400).json({
+      success: false,
+      message: "Login failed",
+      error: error.message,
+    });
+  }
+});
+
+/**
+ * @swagger
  * /api/doctors/validate-otp:
  *   post:
  *     summary: Validate OTP and authenticate doctor
@@ -69,15 +194,69 @@ router.post("/register", async (req, res) => {
  *             properties:
  *               phoneNumber:
  *                 type: string
+ *                 pattern: '^\+91[0-9]{10}$'
+ *                 description: Phone number with country code +91 followed by 10 digits
  *               otp:
  *                 type: string
+ *                 description: 6-digit OTP sent to the phone number
  *     responses:
  *       200:
  *         description: OTP validated successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: "OTP validated successfully"
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     token:
+ *                       type: string
+ *                       example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+ *                     doctor:
+ *                       type: object
+ *                       properties:
+ *                         id:
+ *                           type: integer
+ *                           example: 1
+ *                         phoneNumber:
+ *                           type: string
+ *                           example: "+919876543210"
+ *                         isProfileComplete:
+ *                           type: boolean
+ *                           example: true
  *       400:
  *         description: Invalid OTP
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: false
+ *                 message:
+ *                   type: string
+ *                   example: "Invalid OTP"
  *       404:
  *         description: Doctor not found
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: false
+ *                 message:
+ *                   type: string
+ *                   example: "Doctor not found"
  */
 router.post("/validate-otp", async (req, res) => {
   try {
@@ -137,9 +316,50 @@ router.post("/validate-otp", async (req, res) => {
  *             properties:
  *               phoneNumber:
  *                 type: string
+ *                 pattern: '^\+91[0-9]{10}$'
+ *                 description: Phone number with country code +91 followed by 10 digits
  *     responses:
  *       200:
  *         description: Check successful
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 exists:
+ *                   type: boolean
+ *                   example: true
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     id:
+ *                       type: integer
+ *                       example: 1
+ *                     phoneNumber:
+ *                       type: string
+ *                       example: "+919876543210"
+ *                     isProfileComplete:
+ *                       type: boolean
+ *                       example: true
+ *       400:
+ *         description: Invalid input or check failed
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: false
+ *                 message:
+ *                   type: string
+ *                   example: "Check failed"
+ *                 error:
+ *                   type: string
+ *                   example: "Invalid phone number format"
  */
 router.post("/check-exists", async (req, res) => {
   try {
