@@ -196,6 +196,7 @@ const updateProfessionalDetails = async (doctorId, professionalData) => {
       yearsOfExperience,
       communicationLanguages,
       consultationFees,
+      availableDays,
     } = professionalData;
 
     // Find or create professional details
@@ -210,18 +211,34 @@ const updateProfessionalDetails = async (doctorId, professionalData) => {
       });
     }
 
+    // Check if the registration number is unique if it's being changed
+    if (registrationNumber && registrationNumber !== professional.registrationNumber) {
+      const existingWithRegNumber = await DoctorProfessional.findOne({
+        where: { 
+          registrationNumber,
+          doctorId: { [Op.ne]: doctorId } // exclude the current doctor
+        }
+      });
+      
+      if (existingWithRegNumber) {
+        throw new Error('This registration number is already in use by another doctor');
+      }
+    }
+
     // Update professional details
     await professional.update({
-      qualification: qualification || professional.qualification,
-      specialization: specialization || professional.specialization,
-      registrationNumber: registrationNumber || professional.registrationNumber,
-      registrationState: registrationState || professional.registrationState,
-      expiryDate: expiryDate || professional.expiryDate,
-      certificates: certificates || professional.certificates,
-      clinicName: clinicName || professional.clinicName,
-      yearsOfExperience: yearsOfExperience || professional.yearsOfExperience,
-      communicationLanguages: communicationLanguages || professional.communicationLanguages,
-      consultationFees: consultationFees || professional.consultationFees,
+      qualification: qualification !== undefined ? qualification : professional.qualification,
+      specialization: specialization !== undefined ? specialization : professional.specialization,
+      registrationNumber: registrationNumber !== undefined ? registrationNumber : professional.registrationNumber,
+      registrationState: registrationState !== undefined ? registrationState : professional.registrationState,
+      expiryDate: expiryDate !== undefined ? expiryDate : professional.expiryDate,
+      certificates: certificates !== undefined ? certificates : professional.certificates,
+      clinicName: clinicName !== undefined ? clinicName : professional.clinicName,
+      yearsOfExperience: yearsOfExperience !== undefined ? yearsOfExperience : professional.yearsOfExperience,
+      communicationLanguages: communicationLanguages !== undefined ? communicationLanguages : professional.communicationLanguages,
+      consultationFees: consultationFees !== undefined ? consultationFees : professional.consultationFees,
+      availableDays: availableDays !== undefined ? availableDays : professional.availableDays,
+      status: "Pending Verification",
     });
 
     return professional;

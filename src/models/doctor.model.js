@@ -103,8 +103,7 @@ const DoctorProfessional = sequelize.define('DoctorProfessional', {
   },
   registrationNumber: {
     type: DataTypes.STRING(50),
-    allowNull: true,
-    unique: true
+    allowNull: true
   },
   registrationState: {
     type: DataTypes.STRING(50),

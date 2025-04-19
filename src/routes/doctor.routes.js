@@ -587,6 +587,10 @@ router.put("/personal-details/:id", auth, async (req, res) => {
  *                   type: string
  *               consultationFees:
  *                 type: number
+ *               availableDays:
+ *                 type: array
+ *                 items:
+ *                   type: string
  *     responses:
  *       200:
  *         description: Professional details updated successfully
@@ -623,6 +627,7 @@ router.put("/professional-details/:id", auth, async (req, res) => {
       yearsOfExperience,
       communicationLanguages,
       consultationFees,
+      availableDays,
     } = req.body;
 
     const doctorId = parseInt(req.params.id);
@@ -665,6 +670,7 @@ router.put("/professional-details/:id", auth, async (req, res) => {
       yearsOfExperience: yearsOfExperience || professional.yearsOfExperience,
       communicationLanguages: communicationLanguages || professional.communicationLanguages,
       consultationFees: consultationFees || professional.consultationFees,
+      availableDays: availableDays || professional.availableDays,
       status: 'Pending Verification'
     });
 
@@ -674,6 +680,8 @@ router.put("/professional-details/:id", auth, async (req, res) => {
       data: professional
     });
   } catch (error) {
+    console.error('Error updating professional details:', error);
+    
     res.status(400).json({
       success: false,
       message: 'Failed to update professional details',
