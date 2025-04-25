@@ -26,6 +26,7 @@ const videoRoutes = require('./routes/video.routes');
 const patientConsultationRoutes = require('./routes/patient/consultation.routes');
 const doctorConsultationRoutes = require('./routes/doctor/consultation.routes');
 const paymentRoutes = require('./routes/payment.routes');
+const prescriptionRoutes = require('./routes/prescription.routes');
 
 const app = express();
 const server = http.createServer(app);
@@ -112,6 +113,7 @@ app.use('/api/video', videoRoutes);
 app.use('/api/consultation', patientConsultationRoutes);
 app.use('/api/doctor', doctorConsultationRoutes);
 app.use('/api/payment', paymentRoutes);
+app.use('/api/prescriptions', prescriptionRoutes);
 
 // Error handling middleware
 app.use((err, req, res, next) => {

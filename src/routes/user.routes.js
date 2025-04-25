@@ -28,7 +28,7 @@ const userController = require('../controllers/user.controller');
 router.post('/register-new', async (req, res) => {
   try {
     const { phone } = req.body;
-    
+
     if (!phone) {
       return res.status(400).json({
         success: false,
@@ -38,8 +38,8 @@ router.post('/register-new', async (req, res) => {
 
     // First check if user exists
     const userExistsResult = await userController.checkUserExists(phone);
-    
-    if (userExistsResult.success && userExistsResult.data.exists) {
+
+    if (userExistsResult.isUserExist) {
       // If user exists, proceed with login
       const loginResult = await userController.doLogin(phone);
       return res.json(loginResult);
@@ -85,14 +85,14 @@ router.post('/register-new', async (req, res) => {
 router.post('/validate-otp', async (req, res) => {
   try {
     const { phone, otp } = req.body;
-    
+
     if (!phone || !otp) {
       return res.status(400).json({
         success: false,
         message: 'Phone number and OTP are required'
       });
     }
-    
+
     const result = await userController.validateOTP(phone, otp);
     res.json(result);
   } catch (error) {
@@ -129,14 +129,14 @@ router.post('/validate-otp', async (req, res) => {
 router.post('/checkUserExist', async (req, res) => {
   try {
     const { phone } = req.body;
-    
+
     if (!phone) {
       return res.status(400).json({
         success: false,
         message: 'Phone number is required'
       });
     }
-    
+
     const result = await userController.checkUserExists(phone);
     res.json(result);
   } catch (error) {
@@ -170,14 +170,14 @@ router.post('/checkUserExist', async (req, res) => {
 router.put('/record-personal-details', async (req, res) => {
   try {
     const authHeader = req.headers.authorization;
-    
+
     if (!authHeader) {
       return res.status(401).json({
         success: false,
         message: 'Authorization header is required'
       });
     }
-    
+
     const result = await userController.recordPersonalDetails(req.body, authHeader);
     res.json(result);
   } catch (error) {
@@ -205,14 +205,14 @@ router.put('/record-personal-details', async (req, res) => {
 router.get('/profile-details', async (req, res) => {
   try {
     const authHeader = req.headers.authorization;
-    
+
     if (!authHeader) {
       return res.status(401).json({
         success: false,
         message: 'Authorization header is required'
       });
     }
-    console.log("header",authHeader);
+    console.log("header", authHeader);
     const result = await userController.getProfileDetails(authHeader);
     res.json(result);
   } catch (error) {
@@ -240,14 +240,14 @@ router.get('/profile-details', async (req, res) => {
 router.get('/medical-details', async (req, res) => {
   try {
     const authHeader = req.headers.authorization;
-    
+
     if (!authHeader) {
       return res.status(401).json({
         success: false,
         message: 'Authorization header is required'
       });
     }
-    
+
     const result = await userController.getMedicalDetails(authHeader);
     res.json(result);
   } catch (error) {
@@ -287,21 +287,21 @@ router.put('/email-verify', async (req, res) => {
   try {
     const { email } = req.body;
     const authHeader = req.headers.authorization;
-    
+
     if (!authHeader) {
       return res.status(401).json({
         success: false,
         message: 'Authorization header is required'
       });
     }
-    
+
     if (!email) {
       return res.status(400).json({
         success: false,
         message: 'Email is required'
       });
     }
-    
+
     const result = await userController.verifyEmail(email, authHeader);
     res.json(result);
   } catch (error) {
@@ -335,14 +335,14 @@ router.put('/email-verify', async (req, res) => {
 router.post('/medical-details', async (req, res) => {
   try {
     const authHeader = req.headers.authorization;
-    
+
     if (!authHeader) {
       return res.status(401).json({
         success: false,
         message: 'Authorization header is required'
       });
     }
-    
+
     const result = await userController.updateMedicalDetails(req.body, authHeader);
     res.json(result);
   } catch (error) {
