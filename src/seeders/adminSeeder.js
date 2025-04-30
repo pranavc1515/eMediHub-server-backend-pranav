@@ -1,4 +1,4 @@
-const User = require('../models/user.model');
+const Patient = require('../models/patient.model');
 
 const seedAdmins = async () => {
   try {
@@ -21,10 +21,10 @@ const seedAdmins = async () => {
       },
     ];
 
-    await Promise.all(admins.map(admin => User.create(admin)));
-    console.log('Admin users seeded successfully');
+    await Promise.all(admins.map(admin => Patient.create(admin)));
+    console.log('Admin patients seeded successfully');
   } catch (error) {
-    console.error('Error seeding admin users:', error);
+    console.error('Error seeding admin patients:', error);
     throw error;
   }
 };

@@ -1,13 +1,13 @@
 const express = require('express');
 const router = express.Router();
 const jwt = require('jsonwebtoken');
-const User = require('../models/user.model');
+const Patient = require('../models/patient.model');
 
 /**
  * @swagger
  * /api/auth/register:
  *   post:
- *     summary: Register a new user
+ *     summary: Register a new patient
  *     tags: [Auth]
  *     requestBody:
  *       required: true
@@ -31,14 +31,14 @@ const User = require('../models/user.model');
  *                 type: string
  *     responses:
  *       201:
- *         description: User registered successfully
+ *         description: Patient registered successfully
  *       400:
  *         description: Invalid input data
  */
 router.post('/register', async (req, res) => {
   try {
     const { email, password, firstName, lastName } = req.body;
-    const user = await User.create({
+    const patient = await Patient.create({
       email,
       password,
       firstName,
@@ -47,12 +47,12 @@ router.post('/register', async (req, res) => {
 
     res.status(201).json({
       success: true,
-      message: 'User registered successfully',
+      message: 'Patient registered successfully',
       data: {
-        id: user.id,
-        email: user.email,
-        firstName: user.firstName,
-        lastName: user.lastName,
+        id: patient.id,
+        email: patient.email,
+        firstName: patient.firstName,
+        lastName: patient.lastName,
       },
     });
   } catch (error) {
@@ -68,7 +68,7 @@ router.post('/register', async (req, res) => {
  * @swagger
  * /api/auth/login:
  *   post:
- *     summary: Login user
+ *     summary: Login patient
  *     tags: [Auth]
  *     requestBody:
  *       required: true
@@ -93,9 +93,9 @@ router.post('/register', async (req, res) => {
 router.post('/login', async (req, res) => {
   try {
     const { email, password } = req.body;
-    const user = await User.findOne({ where: { email } });
+    const patient = await Patient.findOne({ where: { email } });
 
-    if (!user || !(await user.validatePassword(password))) {
+    if (!patient || !(await patient.validatePassword(password))) {
       return res.status(401).json({
         success: false,
         message: 'Invalid credentials',
@@ -103,7 +103,7 @@ router.post('/login', async (req, res) => {
     }
 
     const token = jwt.sign(
-      { id: user.id, email: user.email, role: user.role },
+      { id: patient.id, email: patient.email, role: patient.role },
       process.env.JWT_SECRET,
       { expiresIn: process.env.JWT_EXPIRES_IN }
     );
@@ -113,12 +113,12 @@ router.post('/login', async (req, res) => {
       message: 'Login successful',
       data: {
         token,
-        user: {
-          id: user.id,
-          email: user.email,
-          firstName: user.firstName,
-          lastName: user.lastName,
-          role: user.role,
+        patient: {
+          id: patient.id,
+          email: patient.email,
+          firstName: patient.firstName,
+          lastName: patient.lastName,
+          role: patient.role,
         },
       },
     });

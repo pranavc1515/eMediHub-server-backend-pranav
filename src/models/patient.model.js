@@ -1,7 +1,6 @@
 const { DataTypes } = require('sequelize');
 const sequelize = require('../config/database');
 const bcrypt = require('bcryptjs');
-const User = require('./user.model');
 
 const Patient = sequelize.define(
   'Patient',
@@ -11,23 +10,17 @@ const Patient = sequelize.define(
       defaultValue: DataTypes.UUIDV4,
       primaryKey: true,
     },
-    userId: {
-      type: DataTypes.UUID,
+    email: {
+      type: DataTypes.STRING,
       allowNull: false,
-      references: {
-        model: 'Users',
-        key: 'id',
+      unique: true,
+      validate: {
+        isEmail: true,
       },
     },
-    isMainUser: {
-      type: DataTypes.BOOLEAN,
-      defaultValue: false,
-      description: 'Indicates if this patient record belongs to the main user account',
-    },
-    relationship: {
+    password: {
       type: DataTypes.STRING,
-      allowNull: true,
-      description: 'Relationship with the main user (e.g., self, spouse, child, parent)',
+      allowNull: false,
     },
     firstName: {
       type: DataTypes.STRING,
@@ -37,51 +30,9 @@ const Patient = sequelize.define(
       type: DataTypes.STRING,
       allowNull: false,
     },
-    gender: {
-      type: DataTypes.ENUM('Male', 'Female', 'Other'),
-      allowNull: false,
-    },
-    dateOfBirth: {
-      type: DataTypes.DATEONLY,
-      allowNull: false,
-    },
-    profilePicture: {
-      type: DataTypes.STRING,
-      allowNull: true,
-    },
-    phoneNumber: {
-      type: DataTypes.STRING,
-      allowNull: false,
-    },
-    email: {
-      type: DataTypes.STRING,
-      allowNull: true,
-      validate: {
-        isEmail: true,
-      },
-    },
-    address: {
-      type: DataTypes.TEXT,
-      allowNull: true,
-    },
-    password: {
-      type: DataTypes.STRING,
-      allowNull: true, // Optional for family members
-    },
-    medicalHistory: {
-      type: DataTypes.JSONB,
-      allowNull: true,
-      defaultValue: {},
-    },
-    allergies: {
-      type: DataTypes.ARRAY(DataTypes.STRING),
-      allowNull: true,
-      defaultValue: [],
-    },
-    preferredLanguage: {
-      type: DataTypes.STRING,
-      allowNull: false,
-      defaultValue: 'English',
+    role: {
+      type: DataTypes.ENUM('admin', 'user'),
+      defaultValue: 'user',
     },
     isActive: {
       type: DataTypes.BOOLEAN,
@@ -107,11 +58,7 @@ const Patient = sequelize.define(
 
 // Instance method to check password
 Patient.prototype.validatePassword = async function (password) {
-  return this.password ? bcrypt.compare(password, this.password) : false;
+  return bcrypt.compare(password, this.password);
 };
-
-// Define association with User
-Patient.belongsTo(User, { foreignKey: 'userId' });
-User.hasMany(Patient, { foreignKey: 'userId' });
 
 module.exports = Patient; 

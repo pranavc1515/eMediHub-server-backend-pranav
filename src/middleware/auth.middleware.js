@@ -1,5 +1,5 @@
 const jwt = require('jsonwebtoken');
-const User = require('../models/user.model');
+const Patient = require('../models/patient.model');
 const { DoctorPersonal } = require('../models/doctor.model');
 
 const auth = async (req, res, next) => {
@@ -19,7 +19,7 @@ const auth = async (req, res, next) => {
     if (decoded.type === 'doctor') {
       user = await DoctorPersonal.findOne({ where: { id: decoded.id } });
     } else {
-      user = await User.findOne({ where: { id: decoded.id } });
+      user = await Patient.findOne({ where: { id: decoded.id } });
     }
 
     if (!user) {

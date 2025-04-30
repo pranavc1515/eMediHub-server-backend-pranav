@@ -1,6 +1,6 @@
 const sequelize = require('./config/database');
 const { DoctorPersonal, DoctorProfessional } = require('./models/doctor.model');
-const User = require('./models/user.model');
+const Patient = require('./models/patient.model');
 const Consultation = require('./models/consultation.model');
 const Prescription = require('./models/prescription.model');
 
@@ -26,9 +26,9 @@ const syncAllModels = async () => {
 
     // Add other models here if needed
     // Uncomment if needed:
-    // await User.sync({ alter: true });
-    // console.log('User table synchronized');
-
+    // await Patient.sync({ alter: true });
+    // console.log('Patient table synchronized');
+    
     console.log('All database tables synchronized successfully');
     process.exit(0);
   } catch (error) {

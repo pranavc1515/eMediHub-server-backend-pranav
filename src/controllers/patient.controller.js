@@ -1,143 +1,246 @@
-const Patient = require('../models/patient.model');
-const User = require('../models/user.model');
+const axios = require("axios");
 
-// Create a new patient profile
-const createPatientProfile = async (userId, patientData) => {
+// Base URL for the 3rd party API
+// const API_BASE_URL = "http://52.66.115.96:3000/user";
+const API_BASE_URL = "https://devbackend.emedihub.com/user";
+
+// Register a new patient
+const registerNewPatient = async (phone) => {
   try {
-    // Check if this is the main profile
-    const isMainProfile = !patientData.relationship;
-
-    // If main profile, check if one already exists
-    if (isMainProfile) {
-      const existingMainProfile = await Patient.findOne({
-        where: {
-          userId: userId,
-          isMainUser: true,
+    const response = await axios.post(
+      `${API_BASE_URL}/register-new`,
+      { phone },
+      {
+        headers: {
+          "Content-Type": "application/json",
         },
-      });
-
-      if (existingMainProfile) {
-        throw new Error('Main patient profile already exists for this user');
       }
+    );
+
+    return response.data;
+  } catch (error) {
+    // If patient already exists, automatically trigger login flow
+    if (
+      error.response?.data?.message ===
+      "User already registered with this phone number."
+    ) {
+      const loginResponse = await doLogin(phone);
+      return { ...loginResponse, patientExists: true };
     }
-
-    // Set additional fields
-    patientData.userId = userId;
-    patientData.isMainUser = isMainProfile;
-
-    // Create patient record
-    const patient = await Patient.create(patientData);
-
-    // Remove sensitive information
-    const patientResponse = patient.toJSON();
-    delete patientResponse.password;
-
-    return patientResponse;
-  } catch (error) {
-    throw new Error(`Error creating patient profile: ${error.message}`);
+    throw new Error(error.response?.data?.message || "Error registering patient");
   }
 };
 
-// Get patient profiles for a user
-const getPatientProfiles = async (userId) => {
+// Validate OTP
+const validateOTP = async (phone, otp) => {
   try {
-    const patients = await Patient.findAll({
-      where: { userId },
-      attributes: { exclude: ['password'] },
-      order: [
-        ['isMainUser', 'DESC'], // Main user first
-        ['createdAt', 'ASC'], // Then by creation date
-      ],
-    });
+    const response = await axios.post(
+      `${API_BASE_URL}/validate-otp`,
+      { phone, otp },
+      {
+        headers: {
+          "Content-Type": "application/json",
+        },
+      }
+    );
 
-    return patients;
+    // If OTP validation is successful, get profile details
+    console.log(response.data.status && response.data.token);
+
+    console.log("response.data", response.data);
+    const profileDetails = await getProfileDetails(
+      `Bearer ${response.data.token}`
+    );
+    console.log("details", profileDetails);
+    return {
+      ...response.data,
+      patient: profileDetails.data,
+    };
+
+    // return response.data;
   } catch (error) {
-    throw new Error(`Error fetching patient profiles: ${error.message}`);
+    throw new Error(error.response?.data?.message || "Error validating OTP");
   }
 };
 
-// Get single patient profile 
-const getPatientProfile = async (patientId, userId) => {
+// Check if patient exists
+const checkPatientExists = async (phone) => {
   try {
-    const patient = await Patient.findOne({
-      where: {
-        id: patientId,
-        userId: userId,
+    const response = await axios.post(
+      `${API_BASE_URL}/checkUserExist`,
+      { phone },
+      {
+        headers: {
+          "Content-Type": "application/json",
+        },
+      }
+    );
+    console.log("checkUserExist", response);
+    return response.data;
+  } catch (error) {
+    throw new Error(
+      error.response?.data?.message || "Error checking patient existence"
+    );
+  }
+};
+
+// Record personal details
+const recordPersonalDetails = async (patientData, authToken) => {
+  try {
+    const response = await axios.put(
+      `${API_BASE_URL}/record-personal-details`,
+      patientData,
+      {
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: authToken,
+        },
+      }
+    );
+
+    return response.data;
+  } catch (error) {
+    throw new Error(
+      error.response?.data?.message || "Error updating personal details"
+    );
+  }
+};
+
+// Get profile details
+const getProfileDetails = async (authToken) => {
+  try {
+    const response = await axios.get(`${API_BASE_URL}/profile-details`, {
+      headers: {
+        Authorization: authToken,
       },
-      attributes: { exclude: ['password'] },
     });
 
-    if (!patient) {
-      throw new Error('Patient not found');
-    }
-
-    return patient;
+    return response.data;
   } catch (error) {
-    throw new Error(`Error fetching patient profile: ${error.message}`);
+    throw new Error(
+      error.response?.data?.message || "Error fetching profile details"
+    );
   }
 };
 
-// Update patient profile
-const updatePatientProfile = async (patientId, userId, updateData) => {
+// Get medical details
+const getMedicalDetails = async (authToken) => {
   try {
-    const patient = await Patient.findOne({
-      where: {
-        id: patientId,
-        userId: userId,
+    const response = await axios.get(`${API_BASE_URL}/medical-details`, {
+      headers: {
+        Authorization: authToken,
       },
     });
 
-    if (!patient) {
-      throw new Error('Patient not found');
-    }
-
-    // Remove fields that shouldn't be updated directly
-    delete updateData.userId;
-    delete updateData.isMainUser;
-    delete updateData.password;
-
-    // Update patient record
-    await patient.update(updateData);
-
-    // Remove sensitive information
-    const patientResponse = patient.toJSON();
-    delete patientResponse.password;
-
-    return patientResponse;
+    return response.data;
   } catch (error) {
-    throw new Error(`Error updating patient profile: ${error.message}`);
+    throw new Error(
+      error.response?.data?.message || "Error fetching medical details"
+    );
   }
 };
 
-// Delete patient profile
-const deletePatientProfile = async (patientId, userId) => {
+// Verify email
+const verifyEmail = async (email, authToken) => {
   try {
-    const patient = await Patient.findOne({
-      where: {
-        id: patientId,
-        userId: userId,
+    const response = await axios.put(
+      `${API_BASE_URL}/email-verify`,
+      { email },
+      {
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: authToken,
+        },
+      }
+    );
+
+    return response.data;
+  } catch (error) {
+    throw new Error(error.response?.data?.message || "Error verifying email");
+  }
+};
+
+// Update medical details
+const updateMedicalDetails = async (medicalData, authToken) => {
+  try {
+    const response = await axios.post(
+      `${API_BASE_URL}/medical-details`,
+      medicalData,
+      {
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: authToken,
+        },
+      }
+    );
+
+    return response.data;
+  } catch (error) {
+    throw new Error(
+      error.response?.data?.message || "Error updating medical details"
+    );
+  }
+};
+
+// Login patient
+const doLogin = async (username) => {
+  try {
+    const response = await axios.post(
+      `${API_BASE_URL}/do-login`,
+      { username },
+      {
+        headers: {
+          "Content-Type": "application/json",
+        },
+      }
+    );
+    console.log("doLogin", response.data);
+    return response.data;
+  } catch (error) {
+    throw new Error(error.response?.data?.message || "Error during login");
+  }
+};
+
+// Get video consultation pricing
+const getVideoConsultationPricing = async (authToken) => {
+  try {
+    const response = await axios.get(`${API_BASE_URL}/video-price`, {
+      headers: {
+        Authorization: authToken,
       },
     });
 
-    if (!patient) {
-      throw new Error('Patient not found');
-    }
-
-    if (patient.isMainUser) {
-      throw new Error('Cannot delete main user profile');
-    }
-
-    await patient.destroy();
-    return true;
+    return response.data;
   } catch (error) {
-    throw new Error(`Error deleting patient profile: ${error.message}`);
+    throw new Error(error.response?.data?.message || "Error fetching video consultation pricing");
+  }
+};
+
+// Get doctor price
+const getDoctorPrice = async (doctorId, authToken) => {
+  try {
+    const response = await axios.get(`${API_BASE_URL}/doctor-price/${doctorId}`, {
+      headers: {
+        Authorization: authToken,
+      },
+    });
+
+    return response.data;
+  } catch (error) {
+    throw new Error(error.response?.data?.message || "Error fetching doctor price");
   }
 };
 
 module.exports = {
-  createPatientProfile,
-  getPatientProfiles,
-  getPatientProfile,
-  updatePatientProfile,
-  deletePatientProfile
-}; 
+  registerNewPatient,
+  validateOTP,
+  checkPatientExists,
+  recordPersonalDetails,
+  getProfileDetails,
+  getMedicalDetails,
+  verifyEmail,
+  updateMedicalDetails,
+  doLogin,
+  getVideoConsultationPricing,
+  getDoctorPrice,
+};

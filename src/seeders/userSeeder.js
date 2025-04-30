@@ -1,9 +1,9 @@
-const User = require('../models/user.model');
+const Patient = require('../models/patient.model');
 
-const seedUsers = async () => {
+const seedPatients = async () => {
   try {
-    // Create admin user
-    await User.create({
+    // Create admin patient
+    await Patient.create({
       email: 'admin@emedi.com',
       password: 'admin123',  
       firstName: 'Admin',
@@ -12,8 +12,8 @@ const seedUsers = async () => {
       isActive: true
     });
 
-    // Create some regular users
-    const regularUsers = [
+    // Create some regular patients
+    const regularPatients = [
       {
         email: 'john.doe@example.com',
         password: 'user123',
@@ -32,13 +32,13 @@ const seedUsers = async () => {
       }
     ];
 
-    await Promise.all(regularUsers.map(user => User.create(user)));
+    await Promise.all(regularPatients.map(patient => Patient.create(patient)));
 
-    console.log('Users seeded successfully');
+    console.log('Patients seeded successfully');
   } catch (error) {
-    console.error('Error seeding users:', error);
+    console.error('Error seeding patients:', error);
     throw error;
   }
 };
 
-module.exports = seedUsers; 
+module.exports = seedPatients; 

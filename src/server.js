@@ -18,9 +18,8 @@ const db = require('./config/database');
 
 // Import routes
 const authRoutes = require('./routes/auth.routes');
-const userRoutes = require('./routes/user.routes');
-const doctorRoutes = require('./routes/doctor.routes');
 const patientRoutes = require('./routes/patient.routes');
+const doctorRoutes = require('./routes/doctor.routes');
 const adminRoutes = require('./routes/admin.routes');
 const videoRoutes = require('./routes/video.routes');
 const patientConsultationRoutes = require('./routes/patient/consultation.routes');
@@ -31,31 +30,73 @@ const prescriptionRoutes = require('./routes/prescription.routes');
 const app = express();
 const server = http.createServer(app);
 
-// Socket.io setup
+// Define allowed origins
+const allowedOrigins = [
+  'http://localhost:5173',
+  'http://localhost:3000',
+  'http://127.0.0.1:5173',
+];
+
+// Socket.io setup with improved CORS
 const io = socketIO(server, {
   cors: {
-    origin: '*', // Allow all origins
-    methods: ['GET', 'POST']
-  }
+    origin: allowedOrigins,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
+    allowedHeaders: [
+      'Content-Type',
+      'Authorization',
+      'X-Requested-With',
+      'Accept',
+      'Origin',
+    ],
+    credentials: true,
+  },
+  transports: ['websocket', 'polling'],
 });
 
 // Setup socket handlers
 setupVideoQueueSocket(io);
 
 // CORS configuration
-app.use(cors({
-  origin: '*', // Allow all origins
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin'],
-  credentials: true,
-  maxAge: 86400 // 24 hours
-}));
+app.use(
+  cors({
+    origin: function (origin, callback) {
+      // Allow requests with no origin (like mobile apps or curl requests)
+      if (!origin) return callback(null, true);
+      if (allowedOrigins.indexOf(origin) === -1) {
+        const msg =
+          'The CORS policy for this site does not allow access from the specified Origin.';
+        return callback(new Error(msg), false);
+      }
+      return callback(null, true);
+    },
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
+    allowedHeaders: [
+      'Content-Type',
+      'Authorization',
+      'X-Requested-With',
+      'Accept',
+      'Origin',
+    ],
+    credentials: true,
+    maxAge: 86400, // 24 hours
+  })
+);
 
 // Additional headers for CORS
 app.use((req, res, next) => {
-  res.header('Access-Control-Allow-Origin', '*');
-  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS, PATCH');
-  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, Accept, Origin');
+  const origin = req.headers.origin;
+  if (allowedOrigins.includes(origin)) {
+    res.header('Access-Control-Allow-Origin', origin);
+  }
+  res.header(
+    'Access-Control-Allow-Methods',
+    'GET, POST, PUT, DELETE, OPTIONS, PATCH'
+  );
+  res.header(
+    'Access-Control-Allow-Headers',
+    'Content-Type, Authorization, X-Requested-With, Accept, Origin'
+  );
   res.header('Access-Control-Allow-Credentials', true);
 
   // Handle OPTIONS method
@@ -89,13 +130,15 @@ const swaggerOptions = {
         bearerAuth: {
           type: 'http',
           scheme: 'bearer',
-          bearerFormat: 'JWT'
-        }
-      }
+          bearerFormat: 'JWT',
+        },
+      },
     },
-    security: [{
-      bearerAuth: []
-    }]
+    security: [
+      {
+        bearerAuth: [],
+      },
+    ],
   },
   apis: ['./src/routes/*.js', './src/routes/*/*.js'], // Path to the API routes, including nested routes
 };
@@ -105,9 +148,8 @@ app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerDocs));
 
 // Routes
 app.use('/api/auth', authRoutes);
-app.use('/api/users', userRoutes);
-app.use('/api/doctors', doctorRoutes);
 app.use('/api/patients', patientRoutes);
+app.use('/api/doctors', doctorRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/video', videoRoutes);
 app.use('/api/consultation', patientConsultationRoutes);
@@ -131,9 +173,13 @@ const PORT = process.env.PORT || 3000;
 db.authenticate()
   .then(() => {
     console.log('Database connection established successfully.');
+  })
+  .then(() => {
     server.listen(PORT, () => {
       console.log(`Server is running on port ${PORT}`);
-      console.log(`Swagger documentation available at http://localhost:${PORT}/api-docs`);
+      console.log(
+        `Swagger documentation available at http://localhost:${PORT}/api-docs`
+      );
       console.log(`Socket.io is initialized and ready for connections`);
     });
   })

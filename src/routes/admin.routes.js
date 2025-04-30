@@ -3,7 +3,6 @@ const router = express.Router();
 const { auth, authorize } = require('../middleware/auth.middleware');
 const Doctor = require('../models/doctor.model');
 const Patient = require('../models/patient.model');
-const User = require('../models/user.model');
 
 /**
  * @swagger
@@ -223,10 +222,6 @@ router.get('/patients', auth, authorize('admin'), async (req, res) => {
 
     const { count, rows: patients } = await Patient.findAndCountAll({
       attributes: { exclude: ['password'] },
-      include: [{
-        model: User,
-        attributes: ['email', 'firstName', 'lastName'],
-      }],
       limit: parseInt(limit),
       offset: parseInt(offset),
       order: [['createdAt', 'DESC']],
@@ -254,7 +249,7 @@ router.get('/patients', auth, authorize('admin'), async (req, res) => {
  * @swagger
  * /api/admin/users:
  *   get:
- *     summary: Get all users (Admin only)
+ *     summary: Get all patients (Admin only)
  *     tags: [Admin]
  *     security:
  *       - bearerAuth: []
@@ -271,14 +266,14 @@ router.get('/patients', auth, authorize('admin'), async (req, res) => {
  *           default: 10
  *     responses:
  *       200:
- *         description: List of users retrieved successfully
+ *         description: List of patients retrieved successfully
  */
 router.get('/users', auth, authorize('admin'), async (req, res) => {
   try {
     const { page = 1, limit = 10 } = req.query;
     const offset = (page - 1) * limit;
 
-    const { count, rows: users } = await User.findAndCountAll({
+    const { count, rows: patients } = await Patient.findAndCountAll({
       attributes: { exclude: ['password'] },
       limit: parseInt(limit),
       offset: parseInt(offset),
@@ -288,7 +283,7 @@ router.get('/users', auth, authorize('admin'), async (req, res) => {
     res.json({
       success: true,
       data: {
-        users,
+        patients,
         total: count,
         currentPage: parseInt(page),
         totalPages: Math.ceil(count / limit),
@@ -297,7 +292,7 @@ router.get('/users', auth, authorize('admin'), async (req, res) => {
   } catch (error) {
     res.status(400).json({
       success: false,
-      message: 'Error fetching users',
+      message: 'Error fetching patients',
       error: error.message,
     });
   }
@@ -307,7 +302,7 @@ router.get('/users', auth, authorize('admin'), async (req, res) => {
  * @swagger
  * /api/admin/users/{id}/status:
  *   put:
- *     summary: Update user active status (Admin only)
+ *     summary: Update patient active status (Admin only)
  *     tags: [Admin]
  *     security:
  *       - bearerAuth: []
@@ -330,40 +325,40 @@ router.get('/users', auth, authorize('admin'), async (req, res) => {
  *                 type: boolean
  *     responses:
  *       200:
- *         description: User status updated successfully
+ *         description: Patient status updated successfully
  */
 router.put('/users/:id/status', auth, authorize('admin'), async (req, res) => {
   try {
-    const user = await User.findByPk(req.params.id);
+    const patient = await Patient.findByPk(req.params.id);
 
-    if (!user) {
+    if (!patient) {
       return res.status(404).json({
         success: false,
-        message: 'User not found',
+        message: 'Patient not found',
       });
     }
 
-    if (user.role === 'admin') {
+    if (patient.role === 'admin') {
       return res.status(400).json({
         success: false,
-        message: 'Cannot modify admin user status',
+        message: 'Cannot modify admin patient status',
       });
     }
 
-    await user.update({ isActive: req.body.isActive });
+    await patient.update({ isActive: req.body.isActive });
 
     res.json({
       success: true,
-      message: `User ${req.body.isActive ? 'activated' : 'deactivated'} successfully`,
+      message: `Patient ${req.body.isActive ? 'activated' : 'deactivated'} successfully`,
       data: {
-        id: user.id,
-        isActive: user.isActive,
+        id: patient.id,
+        isActive: patient.isActive,
       },
     });
   } catch (error) {
     res.status(400).json({
       success: false,
-      message: 'Error updating user status',
+      message: 'Error updating patient status',
       error: error.message,
     });
   }
@@ -386,7 +381,6 @@ router.get('/dashboard', auth, authorize('admin'), async (req, res) => {
     const totalDoctors = await Doctor.count();
     const verifiedDoctors = await Doctor.count({ where: { isVerified: true } });
     const totalPatients = await Patient.count();
-    const totalUsers = await User.count({ where: { role: 'user' } });
 
     // Get recent registrations
     const recentDoctors = await Doctor.findAll({
@@ -408,7 +402,6 @@ router.get('/dashboard', auth, authorize('admin'), async (req, res) => {
           totalDoctors,
           verifiedDoctors,
           totalPatients,
-          totalUsers,
         },
         recentRegistrations: {
           doctors: recentDoctors,

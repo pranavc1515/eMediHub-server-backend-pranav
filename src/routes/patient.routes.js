@@ -1,13 +1,319 @@
-const express = require('express');
+const express = require("express");
 const router = express.Router();
-const { auth } = require('../middleware/auth.middleware');
-const patientController = require('../controllers/patient.controller');
+const patientController = require("../controllers/patient.controller");
 
 /**
  * @swagger
- * /api/patients/profile:
+ * /api/patients/register-new:
  *   post:
- *     summary: Create a new patient profile (self or family member)
+ *     summary: Register a new patient (Proxy to 3rd party API)
+ *     tags: [Patients]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - phone
+ *             properties:
+ *               phone:
+ *                 type: string
+ *     responses:
+ *       200:
+ *         description: Success response from 3rd party API
+ *       400:
+ *         description: Error response from 3rd party API
+ */
+router.post("/register-new", async (req, res) => {
+  try {
+    const { phone } = req.body;
+
+    if (!phone) {
+      return res.status(400).json({
+        success: false,
+        message: "Phone number is required",
+      });
+    }
+
+    // First check if patient exists
+    const patientExistsResult = await patientController.checkPatientExists(phone);
+
+    if (patientExistsResult.isUserExist) {
+      // If patient exists, proceed with login
+      const loginResult = await patientController.doLogin(phone);
+      return res.json(loginResult);
+    } else {
+      // If patient doesn't exist, proceed with registration
+      const result = await patientController.registerNewPatient(phone);
+      res.json(result);
+    }
+  } catch (error) {
+    res.status(400).json({
+      success: false,
+      message: error.message,
+    });
+  }
+});
+
+/**
+ * @swagger
+ * /api/patients/validate-otp:
+ *   post:
+ *     summary: Validate OTP for patient authentication (Proxy to 3rd party API)
+ *     tags: [Patients]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - phone
+ *               - otp
+ *             properties:
+ *               phone:
+ *                 type: string
+ *               otp:
+ *                 type: string
+ *     responses:
+ *       200:
+ *         description: Success response from 3rd party API
+ *       400:
+ *         description: Error response from 3rd party API
+ */
+router.post("/validate-otp", async (req, res) => {
+  try {
+    const { phone, otp } = req.body;
+
+    if (!phone || !otp) {
+      return res.status(400).json({
+        success: false,
+        message: "Phone number and OTP are required",
+      });
+    }
+
+    const result = await patientController.validateOTP(phone, otp);
+    res.json(result);
+  } catch (error) {
+    res.status(400).json({
+      success: false,
+      message: error.message,
+    });
+  }
+});
+
+/**
+ * @swagger
+ * /api/patients/checkPatientExist:
+ *   post:
+ *     summary: Check if patient exists by phone number (Proxy to 3rd party API)
+ *     tags: [Patients]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - phone
+ *             properties:
+ *               phone:
+ *                 type: string
+ *     responses:
+ *       200:
+ *         description: Success response from 3rd party API
+ *       400:
+ *         description: Error response from 3rd party API
+ */
+router.post("/checkPatientExist", async (req, res) => {
+  try {
+    const { phone } = req.body;
+
+    if (!phone) {
+      return res.status(400).json({
+        success: false,
+        message: "Phone number is required",
+      });
+    }
+
+    const result = await patientController.checkPatientExists(phone);
+    res.json(result);
+  } catch (error) {
+    res.status(400).json({
+      success: false,
+      message: error.message,
+    });
+  }
+});
+
+/**
+ * @swagger
+ * /api/patients/record-personal-details:
+ *   put:
+ *     summary: Update patient's personal details (Proxy to 3rd party API)
+ *     tags: [Patients]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *     responses:
+ *       200:
+ *         description: Success response from 3rd party API
+ *       400:
+ *         description: Error response from 3rd party API
+ */
+router.put("/record-personal-details", async (req, res) => {
+  try {
+    const authHeader = req.headers.authorization;
+
+    if (!authHeader) {
+      return res.status(401).json({
+        success: false,
+        message: "Authorization header is required",
+      });
+    }
+
+    const result = await patientController.recordPersonalDetails(
+      req.body,
+      authHeader
+    );
+    res.json(result);
+  } catch (error) {
+    res.status(400).json({
+      success: false,
+      message: error.message,
+    });
+  }
+});
+
+/**
+ * @swagger
+ * /api/patients/profile-details:
+ *   get:
+ *     summary: Get patient's profile details (Proxy to 3rd party API)
+ *     tags: [Patients]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Success response from 3rd party API
+ *       401:
+ *         description: Unauthorized - Missing or invalid token
+ *       400:
+ *         description: Error response from 3rd party API
+ */
+router.get("/profile-details", async (req, res) => {
+  try {
+    const authHeader = req.headers.authorization;
+
+    if (!authHeader) {
+      return res.status(401).json({
+        success: false,
+        message: "Authorization header is required",
+      });
+    }
+
+    const result = await patientController.getProfileDetails(authHeader);
+    res.json(result);
+  } catch (error) {
+    res.status(400).json({
+      success: false,
+      message: error.message,
+    });
+  }
+});
+
+/**
+ * @swagger
+ * /api/patients/medical-details:
+ *   get:
+ *     summary: Get patient's medical details (Proxy to 3rd party API)
+ *     tags: [Patients]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Success response from 3rd party API
+ *       401:
+ *         description: Unauthorized - Missing or invalid token
+ *       400:
+ *         description: Error response from 3rd party API
+ */
+router.get("/medical-details", async (req, res) => {
+  try {
+    const authHeader = req.headers.authorization;
+
+    if (!authHeader) {
+      return res.status(401).json({
+        success: false,
+        message: "Authorization header is required",
+      });
+    }
+
+    const result = await patientController.getMedicalDetails(authHeader);
+    res.json(result);
+  } catch (error) {
+    res.status(400).json({
+      success: false,
+      message: error.message,
+    });
+  }
+});
+
+/**
+ * @swagger
+ * /api/patients/medical-details:
+ *   post:
+ *     summary: Update patient's medical details (Proxy to 3rd party API)
+ *     tags: [Patients]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *     responses:
+ *       200:
+ *         description: Success response from 3rd party API
+ *       400:
+ *         description: Error response from 3rd party API
+ */
+router.post("/medical-details", async (req, res) => {
+  try {
+    const authHeader = req.headers.authorization;
+
+    if (!authHeader) {
+      return res.status(401).json({
+        success: false,
+        message: "Authorization header is required",
+      });
+    }
+
+    const result = await patientController.updateMedicalDetails(
+      req.body,
+      authHeader
+    );
+    res.json(result);
+  } catch (error) {
+    res.status(400).json({
+      success: false,
+      message: error.message,
+    });
+  }
+});
+
+/**
+ * @swagger
+ * /api/patients/email-verify:
+ *   put:
+ *     summary: Verify patient's email (Proxy to 3rd party API)
  *     tags: [Patients]
  *     security:
  *       - bearerAuth: []
@@ -18,102 +324,37 @@ const patientController = require('../controllers/patient.controller');
  *           schema:
  *             type: object
  *             required:
- *               - firstName
- *               - lastName
- *               - gender
- *               - dateOfBirth
- *               - phoneNumber
- *               - preferredLanguage
+ *               - email
  *             properties:
- *               firstName:
- *                 type: string
- *               lastName:
- *                 type: string
- *               gender:
- *                 type: string
- *                 enum: [Male, Female, Other]
- *               dateOfBirth:
- *                 type: string
- *                 format: date
- *               profilePicture:
- *                 type: string
- *               phoneNumber:
- *                 type: string
  *               email:
  *                 type: string
- *               address:
- *                 type: string
- *               password:
- *                 type: string
- *               medicalHistory:
- *                 type: object
- *               allergies:
- *                 type: array
- *                 items:
- *                   type: string
- *               preferredLanguage:
- *                 type: string
- *               relationship:
- *                 type: string
- *                 description: Relationship with the main user (required for family members)
  *     responses:
- *       201:
- *         description: Patient profile created successfully
+ *       200:
+ *         description: Success response from 3rd party API
  *       400:
- *         description: Invalid input data
+ *         description: Error response from 3rd party API
  */
-router.post('/profile', auth, async (req, res) => {
+router.put("/email-verify", async (req, res) => {
   try {
-    // Required fields validation
-    const requiredFields = [
-      'firstName',
-      'lastName',
-      'gender',
-      'dateOfBirth',
-      'phoneNumber',
-      'preferredLanguage',
-    ];
-    
-    if (!req.body.relationship) {
-      // This is a main profile
-    } else {
-      // This is a family member profile
-      requiredFields.push('relationship');
-    }
+    const { email } = req.body;
+    const authHeader = req.headers.authorization;
 
-    const missingFields = requiredFields.filter(field => !req.body[field]);
-
-    if (missingFields.length > 0) {
+    if (!email) {
       return res.status(400).json({
         success: false,
-        message: 'Missing required fields',
-        missingFields,
+        message: "Email is required",
       });
     }
 
-    // Validate gender
-    if (!['Male', 'Female', 'Other'].includes(req.body.gender)) {
-      return res.status(400).json({
+    if (!authHeader) {
+      return res.status(401).json({
         success: false,
-        message: 'Invalid gender value',
+        message: "Authorization header is required",
       });
     }
 
-    // Validate date format
-    if (isNaN(Date.parse(req.body.dateOfBirth))) {
-      return res.status(400).json({
-        success: false,
-        message: 'Invalid date format for dateOfBirth',
-      });
-    }
-
-    const result = await patientController.createPatientProfile(req.user.id, req.body);
-
-    res.status(201).json({
-      success: true,
-      message: 'Patient profile created successfully',
-      data: result,
-    });
+    const result = await patientController.verifyEmail(email, authHeader);
+    res.json(result);
   } catch (error) {
     res.status(400).json({
       success: false,
@@ -124,191 +365,34 @@ router.post('/profile', auth, async (req, res) => {
 
 /**
  * @swagger
- * /api/patients/profiles:
+ * /api/patients/video-price:
  *   get:
- *     summary: Get all patient profiles for the authenticated user
+ *     summary: Get video consultation pricing (Proxy to 3rd party API)
  *     tags: [Patients]
  *     security:
  *       - bearerAuth: []
  *     responses:
  *       200:
- *         description: Profiles retrieved successfully
- */
-router.get('/profiles', auth, async (req, res) => {
-  try {
-    const profiles = await patientController.getPatientProfiles(req.user.id);
-
-    res.json({
-      success: true,
-      count: profiles.length,
-      data: profiles,
-    });
-  } catch (error) {
-    res.status(400).json({
-      success: false,
-      message: error.message,
-    });
-  }
-});
-
-/**
- * @swagger
- * /api/patients/profile/{id}:
- *   get:
- *     summary: Get a specific patient profile
- *     tags: [Patients]
- *     security:
- *       - bearerAuth: []
- *     parameters:
- *       - in: path
- *         name: id
- *         required: true
- *         schema:
- *           type: string
- *     responses:
- *       200:
- *         description: Profile retrieved successfully
- *       404:
- *         description: Patient not found
- */
-router.get('/profile/:id', auth, async (req, res) => {
-  try {
-    const profile = await patientController.getPatientProfile(req.params.id, req.user.id);
-
-    res.json({
-      success: true,
-      data: profile,
-    });
-  } catch (error) {
-    if (error.message.includes('not found')) {
-      return res.status(404).json({
-        success: false,
-        message: error.message,
-      });
-    }
-    
-    res.status(400).json({
-      success: false,
-      message: error.message,
-    });
-  }
-});
-
-/**
- * @swagger
- * /api/patients/profile/{id}:
- *   put:
- *     summary: Update a patient profile
- *     tags: [Patients]
- *     security:
- *       - bearerAuth: []
- *     parameters:
- *       - in: path
- *         name: id
- *         required: true
- *         schema:
- *           type: string
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *     responses:
- *       200:
- *         description: Profile updated successfully
- *       404:
- *         description: Patient not found
- */
-router.put('/profile/:id', auth, async (req, res) => {
-  try {
-    // Validate gender if provided
-    if (req.body.gender && !['Male', 'Female', 'Other'].includes(req.body.gender)) {
-      return res.status(400).json({
-        success: false,
-        message: 'Invalid gender value',
-      });
-    }
-
-    // Validate date format if provided
-    if (req.body.dateOfBirth && isNaN(Date.parse(req.body.dateOfBirth))) {
-      return res.status(400).json({
-        success: false,
-        message: 'Invalid date format for dateOfBirth',
-      });
-    }
-
-    const updatedProfile = await patientController.updatePatientProfile(
-      req.params.id,
-      req.user.id,
-      req.body
-    );
-
-    res.json({
-      success: true,
-      message: 'Patient profile updated successfully',
-      data: updatedProfile,
-    });
-  } catch (error) {
-    if (error.message.includes('not found')) {
-      return res.status(404).json({
-        success: false,
-        message: error.message,
-      });
-    }
-    
-    res.status(400).json({
-      success: false,
-      message: error.message,
-    });
-  }
-});
-
-/**
- * @swagger
- * /api/patients/profile/{id}:
- *   delete:
- *     summary: Delete a patient profile (family member only)
- *     tags: [Patients]
- *     security:
- *       - bearerAuth: []
- *     parameters:
- *       - in: path
- *         name: id
- *         required: true
- *         schema:
- *           type: string
- *     responses:
- *       200:
- *         description: Patient profile deleted successfully
+ *         description: Success response from 3rd party API
+ *       401:
+ *         description: Unauthorized - Missing or invalid token
  *       400:
- *         description: Cannot delete main user profile
- *       404:
- *         description: Patient not found
+ *         description: Error response from 3rd party API
  */
-router.delete('/profile/:id', auth, async (req, res) => {
+router.get("/video-price", async (req, res) => {
   try {
-    await patientController.deletePatientProfile(req.params.id, req.user.id);
+    const authHeader = req.headers.authorization;
 
-    res.json({
-      success: true,
-      message: 'Patient profile deleted successfully',
-    });
+    if (!authHeader) {
+      return res.status(401).json({
+        success: false,
+        message: "Authorization header is required",
+      });
+    }
+
+    const result = await patientController.getVideoConsultationPricing(authHeader);
+    res.json(result);
   } catch (error) {
-    if (error.message.includes('not found')) {
-      return res.status(404).json({
-        success: false,
-        message: error.message,
-      });
-    }
-    
-    if (error.message.includes('Cannot delete main user profile')) {
-      return res.status(400).json({
-        success: false,
-        message: error.message,
-      });
-    }
-    
     res.status(400).json({
       success: false,
       message: error.message,
@@ -316,4 +400,48 @@ router.delete('/profile/:id', auth, async (req, res) => {
   }
 });
 
-module.exports = router; 
+/**
+ * @swagger
+ * /api/patients/doctor-price/{doctorId}:
+ *   get:
+ *     summary: Get doctor's consultation price (Proxy to 3rd party API)
+ *     tags: [Patients]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: doctorId
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Success response from 3rd party API
+ *       401:
+ *         description: Unauthorized - Missing or invalid token
+ *       400:
+ *         description: Error response from 3rd party API
+ */
+router.get("/doctor-price/:doctorId", async (req, res) => {
+  try {
+    const { doctorId } = req.params;
+    const authHeader = req.headers.authorization;
+
+    if (!authHeader) {
+      return res.status(401).json({
+        success: false,
+        message: "Authorization header is required",
+      });
+    }
+
+    const result = await patientController.getDoctorPrice(doctorId, authHeader);
+    res.json(result);
+  } catch (error) {
+    res.status(400).json({
+      success: false,
+      message: error.message,
+    });
+  }
+});
+
+module.exports = router;

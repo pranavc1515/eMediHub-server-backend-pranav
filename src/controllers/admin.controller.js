@@ -1,6 +1,5 @@
 const Doctor = require('../models/doctor.model');
 const Patient = require('../models/patient.model');
-const User = require('../models/user.model');
 
 // Get all doctors (Admin only)
 exports.getAllDoctors = async (req, res) => {
@@ -117,10 +116,6 @@ exports.getAllPatients = async (req, res) => {
 
     const { count, rows: patients } = await Patient.findAndCountAll({
       attributes: { exclude: ['password'] },
-      include: [{
-        model: User,
-        attributes: ['email', 'firstName', 'lastName'],
-      }],
       limit: parseInt(limit),
       offset: parseInt(offset),
       order: [['createdAt', 'DESC']],
@@ -144,13 +139,13 @@ exports.getAllPatients = async (req, res) => {
   }
 };
 
-// Get all users (Admin only)
+// Get all patients (used to be users) (Admin only)
 exports.getAllUsers = async (req, res) => {
   try {
     const { page = 1, limit = 10 } = req.query;
     const offset = (page - 1) * limit;
 
-    const { count, rows: users } = await User.findAndCountAll({
+    const { count, rows: patients } = await Patient.findAndCountAll({
       attributes: { exclude: ['password'] },
       limit: parseInt(limit),
       offset: parseInt(offset),
@@ -160,7 +155,7 @@ exports.getAllUsers = async (req, res) => {
     res.json({
       success: true,
       data: {
-        users,
+        patients,
         total: count,
         currentPage: parseInt(page),
         totalPages: Math.ceil(count / limit),
@@ -169,57 +164,56 @@ exports.getAllUsers = async (req, res) => {
   } catch (error) {
     res.status(400).json({
       success: false,
-      message: 'Error fetching users',
+      message: 'Error fetching patients',
       error: error.message,
     });
   }
 };
 
-// Update user active status (Admin only)
+// Update patient active status (Admin only)
 exports.updateUserStatus = async (req, res) => {
   try {
-    const user = await User.findByPk(req.params.id);
+    const patient = await Patient.findByPk(req.params.id);
 
-    if (!user) {
+    if (!patient) {
       return res.status(404).json({
         success: false,
-        message: 'User not found',
+        message: 'Patient not found',
       });
     }
 
-    if (user.role === 'admin') {
+    if (patient.role === 'admin') {
       return res.status(400).json({
         success: false,
-        message: 'Cannot modify admin user status',
+        message: 'Cannot modify admin patient status',
       });
     }
 
-    await user.update({ isActive: req.body.isActive });
+    await patient.update({ isActive: req.body.isActive });
 
     res.json({
       success: true,
-      message: `User ${req.body.isActive ? 'activated' : 'deactivated'} successfully`,
+      message: `Patient ${req.body.isActive ? 'activated' : 'deactivated'} successfully`,
       data: {
-        id: user.id,
-        isActive: user.isActive,
+        id: patient.id,
+        isActive: patient.isActive,
       },
     });
   } catch (error) {
     res.status(400).json({
       success: false,
-      message: 'Error updating user status',
+      message: 'Error updating patient status',
       error: error.message,
     });
   }
 };
 
 // Get admin dashboard statistics
-exports.getDashboardStats = async (req, res) => {
+exports.getDashboardStatistics = async (req, res) => {
   try {
     const totalDoctors = await Doctor.count();
     const verifiedDoctors = await Doctor.count({ where: { isVerified: true } });
     const totalPatients = await Patient.count();
-    const totalUsers = await User.count({ where: { role: 'user' } });
 
     // Get recent registrations
     const recentDoctors = await Doctor.findAll({
@@ -241,7 +235,6 @@ exports.getDashboardStats = async (req, res) => {
           totalDoctors,
           verifiedDoctors,
           totalPatients,
-          totalUsers,
         },
         recentRegistrations: {
           doctors: recentDoctors,
