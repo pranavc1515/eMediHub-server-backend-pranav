@@ -7,7 +7,7 @@ const API_BASE_URL = "https://devbackend.emedihub.com/user";
 // Register a new user
 const registerNewUser = async (phone) => {
   try {
-    const response = await axios.post(I
+    const response = await axios.post(
       `${API_BASE_URL}/register-new`,
       { phone },
       {

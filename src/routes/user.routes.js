@@ -58,6 +58,62 @@ router.post('/register-new', async (req, res) => {
 
 /**
  * @swagger
+ * /api/users/do-login:
+ *   post:
+ *     summary: Login a user with phone number or username (Proxy to 3rd party API)
+ *     tags: [Users]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - username
+ *             properties:
+ *               username:
+ *                 type: string
+ *                 description: Phone number or username of the user
+ *     responses:
+ *       200:
+ *         description: OTP sent successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 status:
+ *                   type: boolean
+ *                 status_code:
+ *                   type: integer
+ *                 message:
+ *                   type: string
+ *       400:
+ *         description: Error response from 3rd party API
+ */
+router.post('/do-login', async (req, res) => {
+  try {
+    const { username } = req.body;
+
+    if (!username) {
+      return res.status(400).json({
+        success: false,
+        message: 'Username/phone number is required'
+      });
+    }
+
+    const result = await userController.doLogin(username);
+    res.json(result);
+  } catch (error) {
+    res.status(400).json({
+      success: false,
+      message: error.message
+    });
+  }
+});
+
+/**
+ * @swagger
  * /api/users/validate-otp:
  *   post:
  *     summary: Validate OTP for user authentication (Proxy to 3rd party API)
@@ -352,7 +408,5 @@ router.post('/medical-details', async (req, res) => {
     });
   }
 });
-
-
 
 module.exports = router;
