@@ -7,8 +7,9 @@ const { upload } = require('../utils/fileUpload');
 // Helper function to determine auth based on environment
 const useAuth = process.env.NODE_ENV === 'production' ? authenticateToken : (req, res, next) => {
     // For development, simulate a logged-in user
+    // For backward compatibility, still check headers but prefer query params
     req.user = {
-        id: req.headers['x-user-id'] || req.headers['x-doctor-id'] || process.env.TEST_USER_ID
+        id: req.query.doctorId || req.query.userId || req.headers['x-doctor-id'] || req.headers['x-user-id'] || process.env.TEST_USER_ID
     };
     next();
 };
@@ -69,6 +70,16 @@ const useAuth = process.env.NODE_ENV === 'production' ? authenticateToken : (req
  *           type: string
  *           format: uuid
  *         description: Consultation ID
+ *       - in: query
+ *         name: doctorId
+ *         schema:
+ *           type: string
+ *         description: Required if not authenticated - ID of the doctor creating the prescription
+ *       - in: query
+ *         name: userId
+ *         schema:
+ *           type: string
+ *         description: Optional - ID of the user (patient) for whom the prescription is created. If not provided, a synthetic ID will be generated.
  *     requestBody:
  *       content:
  *         multipart/form-data:
@@ -85,13 +96,13 @@ const useAuth = process.env.NODE_ENV === 'production' ? authenticateToken : (req
  *       201:
  *         description: Prescription uploaded successfully
  *       400:
- *         description: No file uploaded or invalid file
+ *         description: No file uploaded or invalid file or missing required IDs
  *       404:
  *         description: Consultation not found
  *       500:
  *         description: Server error
  */
-router.post('/upload/:consultationId', useAuth, upload.single('file'), prescriptionController.uploadPrescriptionFile);
+router.post('/upload/:consultationId', upload.single('file'), prescriptionController.uploadPrescriptionFile);
 
 /**
  * @swagger
@@ -109,22 +120,146 @@ router.post('/upload/:consultationId', useAuth, upload.single('file'), prescript
  *           type: string
  *           format: uuid
  *         description: Consultation ID
+ *       - in: query
+ *         name: doctorId
+ *         schema:
+ *           type: string
+ *         description: Required if not authenticated - ID of the doctor creating the prescription
+ *       - in: query
+ *         name: userId
+ *         schema:
+ *           type: string
+ *         description: Optional - ID of the user (patient) for whom the prescription is created. If not provided, a synthetic ID will be generated.
  *     requestBody:
  *       content:
  *         application/json:
  *           schema:
- *             $ref: '#/components/schemas/CustomPrescription'
+ *             type: object
+ *             properties:
+ *               medicines:
+ *                 type: array
+ *                 items:
+ *                   $ref: '#/components/schemas/Medicine'
+ *               instructions:
+ *                 type: string
+ *                 description: General instructions for the patient
+ *               patientName:
+ *                 type: string
+ *                 description: Optional name of the patient
+ *               patientId:
+ *                 type: string
+ *                 description: Optional ID of the patient, alternative to query param
+ *             required:
+ *               - medicines
  *     responses:
  *       201:
  *         description: Custom prescription created successfully
  *       400:
- *         description: Invalid request data
+ *         description: Invalid request data or missing doctor ID
  *       404:
  *         description: Consultation not found
  *       500:
  *         description: Server error
  */
-router.post('/custom/:consultationId', useAuth, prescriptionController.createCustomPrescription);
+router.post('/custom/:consultationId', prescriptionController.createCustomPrescription);
+
+/**
+ * @swagger
+ * /api/prescriptions/patient/me:
+ *   get:
+ *     summary: Get all prescriptions for a patient
+ *     tags: [Prescriptions]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: userId
+ *         schema:
+ *           type: string
+ *         description: Required if not authenticated - ID of the patient
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *           default: 1
+ *         description: Page number
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           default: 10
+ *         description: Number of items per page
+ *     responses:
+ *       200:
+ *         description: List of prescriptions
+ *       400:
+ *         description: Patient ID is required
+ *       500:
+ *         description: Server error
+ */
+router.get('/patient/me', prescriptionController.getPatientPrescriptions);
+
+/**
+ * @swagger
+ * /api/prescriptions/doctor/me:
+ *   get:
+ *     summary: Get all prescriptions created by a doctor
+ *     tags: [Prescriptions]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: doctorId
+ *         schema:
+ *           type: string
+ *         description: Required if not authenticated - ID of the doctor
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *           default: 1
+ *         description: Page number
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           default: 10
+ *         description: Number of items per page
+ *     responses:
+ *       200:
+ *         description: List of prescriptions
+ *       400:
+ *         description: Doctor ID is required
+ *       500:
+ *         description: Server error
+ */
+router.get('/doctor/me', prescriptionController.getDoctorPrescriptions);
+
+/**
+ * @swagger
+ * /api/prescriptions/consultation/{consultationId}:
+ *   get:
+ *     summary: Get all prescriptions for a specific consultation
+ *     tags: [Prescriptions]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: consultationId
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *         description: Consultation ID
+ *     responses:
+ *       200:
+ *         description: List of prescriptions for the consultation
+ *       404:
+ *         description: Consultation not found
+ *       500:
+ *         description: Server error
+ */
+router.get('/consultation/:consultationId', prescriptionController.getConsultationPrescriptions);
 
 /**
  * @swagger
@@ -150,93 +285,7 @@ router.post('/custom/:consultationId', useAuth, prescriptionController.createCus
  *       500:
  *         description: Server error
  */
-router.get('/:id', useAuth, prescriptionController.getPrescriptionById);
-
-/**
- * @swagger
- * /api/prescriptions/patient/me:
- *   get:
- *     summary: Get all prescriptions for the authenticated patient
- *     tags: [Prescriptions]
- *     security:
- *       - bearerAuth: []
- *     parameters:
- *       - in: query
- *         name: page
- *         schema:
- *           type: integer
- *           default: 1
- *         description: Page number
- *       - in: query
- *         name: limit
- *         schema:
- *           type: integer
- *           default: 10
- *         description: Number of items per page
- *     responses:
- *       200:
- *         description: List of prescriptions
- *       500:
- *         description: Server error
- */
-router.get('/patient/me', useAuth, prescriptionController.getPatientPrescriptions);
-
-/**
- * @swagger
- * /api/prescriptions/doctor/me:
- *   get:
- *     summary: Get all prescriptions created by the authenticated doctor
- *     tags: [Prescriptions]
- *     security:
- *       - bearerAuth: []
- *     parameters:
- *       - in: query
- *         name: page
- *         schema:
- *           type: integer
- *           default: 1
- *         description: Page number
- *       - in: query
- *         name: limit
- *         schema:
- *           type: integer
- *           default: 10
- *         description: Number of items per page
- *     responses:
- *       200:
- *         description: List of prescriptions
- *       500:
- *         description: Server error
- */
-router.get('/doctor/me', useAuth, prescriptionController.getDoctorPrescriptions);
-
-/**
- * @swagger
- * /api/prescriptions/consultation/{consultationId}:
- *   get:
- *     summary: Get all prescriptions for a specific consultation
- *     tags: [Prescriptions]
- *     security:
- *       - bearerAuth: []
- *     parameters:
- *       - in: path
- *         name: consultationId
- *         required: true
- *         schema:
- *           type: string
- *           format: uuid
- *         description: Consultation ID
- *     responses:
- *       200:
- *         description: List of prescriptions for the consultation
- *       403:
- *         description: Not authorized to access these prescriptions
- *       404:
- *         description: Consultation not found
- *       500:
- *         description: Server error
- */
-router.get('/consultation/:consultationId', useAuth, prescriptionController.getConsultationPrescriptions);
+router.get('/:id', prescriptionController.getPrescriptionById);
 
 /**
  * @swagger
@@ -254,14 +303,21 @@ router.get('/consultation/:consultationId', useAuth, prescriptionController.getC
  *           type: string
  *           format: uuid
  *         description: Prescription ID
+ *       - in: query
+ *         name: doctorId
+ *         schema:
+ *           type: string
+ *         description: Required if not authenticated - ID of the doctor who created the prescription
  *     responses:
  *       200:
  *         description: Prescription deleted successfully
+ *       400:
+ *         description: Doctor ID is required
  *       404:
  *         description: Prescription not found or no permission
  *       500:
  *         description: Server error
  */
-router.delete('/:id', useAuth, prescriptionController.deletePrescription);
+router.delete('/:id', prescriptionController.deletePrescription);
 
 module.exports = router; 

@@ -1,8 +1,5 @@
 const { DataTypes } = require('sequelize');
 const sequelize = require('../config/database');
-const Consultation = require('./consultation.model');
-const Patient = require('./patient.model');
-const { DoctorPersonal } = require('./doctor.model');
 
 const Prescription = sequelize.define(
     'Prescription',
@@ -13,28 +10,16 @@ const Prescription = sequelize.define(
             primaryKey: true,
         },
         consultationId: {
-            type: DataTypes.UUID,
+            type: DataTypes.STRING,
             allowNull: false,
-            references: {
-                model: 'Consultations',
-                key: 'id',
-            },
         },
         patientId: {
-            type: DataTypes.UUID,
+            type: DataTypes.STRING,
             allowNull: false,
-            references: {
-                model: 'Patients',
-                key: 'id',
-            },
         },
         doctorId: {
-            type: DataTypes.INTEGER,
+            type: DataTypes.STRING,
             allowNull: false,
-            references: {
-                model: 'DoctorPersonals',
-                key: 'id',
-            },
         },
         prescriptionUrl: {
             type: DataTypes.STRING,
@@ -78,9 +63,6 @@ const Prescription = sequelize.define(
     }
 );
 
-// Establish relationships
-Prescription.belongsTo(Consultation, { foreignKey: 'consultationId', as: 'consultation' });
-Prescription.belongsTo(Patient, { foreignKey: 'patientId', as: 'patient' });
-Prescription.belongsTo(DoctorPersonal, { foreignKey: 'doctorId', as: 'doctor' });
+// No associations with other tables
 
 module.exports = Prescription; 

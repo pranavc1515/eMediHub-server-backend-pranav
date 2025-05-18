@@ -1,6 +1,6 @@
-const express = require("express");
+const express = require('express');
 const router = express.Router();
-const patientController = require("../controllers/patient.controller");
+const patientController = require('../controllers/patient.controller');
 
 /**
  * @swagger
@@ -25,19 +25,21 @@ const patientController = require("../controllers/patient.controller");
  *       400:
  *         description: Error response from 3rd party API
  */
-router.post("/register-new", async (req, res) => {
+router.post('/register-new', async (req, res) => {
   try {
     const { phone } = req.body;
 
     if (!phone) {
       return res.status(400).json({
         success: false,
-        message: "Phone number is required",
+        message: 'Phone number is required',
       });
     }
 
     // First check if patient exists
-    const patientExistsResult = await patientController.checkPatientExists(phone);
+    const patientExistsResult = await patientController.checkPatientExists(
+      phone
+    );
 
     if (patientExistsResult.isUserExist) {
       // If patient exists, proceed with login
@@ -48,6 +50,62 @@ router.post("/register-new", async (req, res) => {
       const result = await patientController.registerNewPatient(phone);
       res.json(result);
     }
+  } catch (error) {
+    res.status(400).json({
+      success: false,
+      message: error.message,
+    });
+  }
+});
+
+/**
+ * @swagger
+ * /api/patients/do-login:
+ *   post:
+ *     summary: Login a user with phone number or username (Proxy to 3rd party API)
+ *     tags: [Users]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - username
+ *             properties:
+ *               username:
+ *                 type: string
+ *                 description: Phone number or username of the user
+ *     responses:
+ *       200:
+ *         description: OTP sent successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 status:
+ *                   type: boolean
+ *                 status_code:
+ *                   type: integer
+ *                 message:
+ *                   type: string
+ *       400:
+ *         description: Error response from 3rd party API
+ */
+router.post('/do-login', async (req, res) => {
+  try {
+    const { username } = req.body;
+
+    if (!username) {
+      return res.status(400).json({
+        success: false,
+        message: 'Username/phone number is required',
+      });
+    }
+
+    const result = await userController.doLogin(username);
+    res.json(result);
   } catch (error) {
     res.status(400).json({
       success: false,
@@ -82,14 +140,14 @@ router.post("/register-new", async (req, res) => {
  *       400:
  *         description: Error response from 3rd party API
  */
-router.post("/validate-otp", async (req, res) => {
+router.post('/validate-otp', async (req, res) => {
   try {
     const { phone, otp } = req.body;
 
     if (!phone || !otp) {
       return res.status(400).json({
         success: false,
-        message: "Phone number and OTP are required",
+        message: 'Phone number and OTP are required',
       });
     }
 
@@ -126,14 +184,14 @@ router.post("/validate-otp", async (req, res) => {
  *       400:
  *         description: Error response from 3rd party API
  */
-router.post("/checkPatientExist", async (req, res) => {
+router.post('/checkPatientExist', async (req, res) => {
   try {
     const { phone } = req.body;
 
     if (!phone) {
       return res.status(400).json({
         success: false,
-        message: "Phone number is required",
+        message: 'Phone number is required',
       });
     }
 
@@ -167,14 +225,14 @@ router.post("/checkPatientExist", async (req, res) => {
  *       400:
  *         description: Error response from 3rd party API
  */
-router.put("/record-personal-details", async (req, res) => {
+router.put('/record-personal-details', async (req, res) => {
   try {
     const authHeader = req.headers.authorization;
 
     if (!authHeader) {
       return res.status(401).json({
         success: false,
-        message: "Authorization header is required",
+        message: 'Authorization header is required',
       });
     }
 
@@ -207,14 +265,14 @@ router.put("/record-personal-details", async (req, res) => {
  *       400:
  *         description: Error response from 3rd party API
  */
-router.get("/profile-details", async (req, res) => {
+router.get('/profile-details', async (req, res) => {
   try {
     const authHeader = req.headers.authorization;
 
     if (!authHeader) {
       return res.status(401).json({
         success: false,
-        message: "Authorization header is required",
+        message: 'Authorization header is required',
       });
     }
 
@@ -244,14 +302,14 @@ router.get("/profile-details", async (req, res) => {
  *       400:
  *         description: Error response from 3rd party API
  */
-router.get("/medical-details", async (req, res) => {
+router.get('/medical-details', async (req, res) => {
   try {
     const authHeader = req.headers.authorization;
 
     if (!authHeader) {
       return res.status(401).json({
         success: false,
-        message: "Authorization header is required",
+        message: 'Authorization header is required',
       });
     }
 
@@ -285,14 +343,14 @@ router.get("/medical-details", async (req, res) => {
  *       400:
  *         description: Error response from 3rd party API
  */
-router.post("/medical-details", async (req, res) => {
+router.post('/medical-details', async (req, res) => {
   try {
     const authHeader = req.headers.authorization;
 
     if (!authHeader) {
       return res.status(401).json({
         success: false,
-        message: "Authorization header is required",
+        message: 'Authorization header is required',
       });
     }
 
@@ -334,7 +392,7 @@ router.post("/medical-details", async (req, res) => {
  *       400:
  *         description: Error response from 3rd party API
  */
-router.put("/email-verify", async (req, res) => {
+router.put('/email-verify', async (req, res) => {
   try {
     const { email } = req.body;
     const authHeader = req.headers.authorization;
@@ -342,14 +400,14 @@ router.put("/email-verify", async (req, res) => {
     if (!email) {
       return res.status(400).json({
         success: false,
-        message: "Email is required",
+        message: 'Email is required',
       });
     }
 
     if (!authHeader) {
       return res.status(401).json({
         success: false,
-        message: "Authorization header is required",
+        message: 'Authorization header is required',
       });
     }
 
@@ -379,18 +437,20 @@ router.put("/email-verify", async (req, res) => {
  *       400:
  *         description: Error response from 3rd party API
  */
-router.get("/video-price", async (req, res) => {
+router.get('/video-price', async (req, res) => {
   try {
     const authHeader = req.headers.authorization;
 
     if (!authHeader) {
       return res.status(401).json({
         success: false,
-        message: "Authorization header is required",
+        message: 'Authorization header is required',
       });
     }
 
-    const result = await patientController.getVideoConsultationPricing(authHeader);
+    const result = await patientController.getVideoConsultationPricing(
+      authHeader
+    );
     res.json(result);
   } catch (error) {
     res.status(400).json({
@@ -422,7 +482,7 @@ router.get("/video-price", async (req, res) => {
  *       400:
  *         description: Error response from 3rd party API
  */
-router.get("/doctor-price/:doctorId", async (req, res) => {
+router.get('/doctor-price/:doctorId', async (req, res) => {
   try {
     const { doctorId } = req.params;
     const authHeader = req.headers.authorization;
@@ -430,7 +490,7 @@ router.get("/doctor-price/:doctorId", async (req, res) => {
     if (!authHeader) {
       return res.status(401).json({
         success: false,
-        message: "Authorization header is required",
+        message: 'Authorization header is required',
       });
     }
 
