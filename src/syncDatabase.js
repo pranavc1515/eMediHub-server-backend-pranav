@@ -9,9 +9,7 @@ const PatientQueue = require('./models/patientQueue.model');
 const fixDoctorPersonalTable = async () => {
   try {
     // Drop all indexes except primary key on doctor_personal
-    console.log(
-      'Fixing doctor_personal table - removing excessive unique constraints...'
-    );
+    console.log('Fixing doctor_personal table - removing excessive unique constraints...');
     await sequelize.query(`
       SET FOREIGN_KEY_CHECKS=0;
       
@@ -22,7 +20,7 @@ const fixDoctorPersonalTable = async () => {
       AND INDEX_NAME != 'PRIMARY'
       AND TABLE_SCHEMA = DATABASE();
     `);
-
+    
     // Keep only one unique key for email and phoneNumber
     await sequelize.query(`
       ALTER TABLE doctor_personal DROP INDEX phoneNumber;
@@ -33,7 +31,7 @@ const fixDoctorPersonalTable = async () => {
       
       SET FOREIGN_KEY_CHECKS=1;
     `);
-
+    
     console.log('Fixed doctor_personal table indexes');
     return true;
   } catch (error) {
@@ -78,7 +76,7 @@ const syncAllModels = async () => {
     console.log('Syncing Prescription table...');
     await Prescription.sync({ alter: true });
     console.log('Prescription table synchronized');
-
+    
     console.log('All database tables synchronized successfully');
     process.exit(0);
   } catch (error) {

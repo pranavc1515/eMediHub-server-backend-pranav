@@ -26,7 +26,6 @@ A Node.js backend server for the eMediHub application with PostgreSQL database a
    npm install
    ```
 3. Configure your environment variables in `.env` file:
-
    ```
    DB_NAME=emedihub
    DB_USER=your-db-username
@@ -37,7 +36,6 @@ A Node.js backend server for the eMediHub application with PostgreSQL database a
    ```
 
 4. Sync the database tables (creates PatientQueue and other tables if they don't exist):
-
    ```
    npm run sync-db
    ```
@@ -55,19 +53,19 @@ A Node.js backend server for the eMediHub application with PostgreSQL database a
 
 The PatientQueue model has been simplified with the following fields:
 
-| Field                 | Description                                        |
-| --------------------- | -------------------------------------------------- |
-| id                    | Primary key (UUID)                                 |
-| patientId             | Foreign key to Patient                             |
-| doctorId              | Foreign key to Doctor                              |
-| status                | ENUM: waiting, in_consultation, done, left         |
-| joinedAt              | Used for queue position calculation                |
-| roomName              | Room name for video chat                           |
-| socketId              | For real-time tracking                             |
-| consultationId        | Link to consultation (when created)                |
-| priority              | For urgent cases (higher number = higher priority) |
-| hasJoinedRoom         | True if patient entered room                       |
-| consultationStartedAt | Track time consultation begins                     |
+| Field                | Description                                  |
+|----------------------|----------------------------------------------|
+| id                   | Primary key (UUID)                           |
+| patientId            | Foreign key to Patient                       |
+| doctorId             | Foreign key to Doctor                        |
+| status               | ENUM: waiting, in_consultation, done, left   |
+| joinedAt             | Used for queue position calculation         |
+| roomName             | Room name for video chat                     |
+| socketId             | For real-time tracking                       |
+| consultationId       | Link to consultation (when created)          |
+| priority             | For urgent cases (higher number = higher priority) |
+| hasJoinedRoom        | True if patient entered room                 |
+| consultationStartedAt| Track time consultation begins               |
 
 Position and wait time are now calculated dynamically based on joinedAt and priority.
 
@@ -84,7 +82,6 @@ This will create all necessary tables in the database.
 ## API Documentation
 
 Access the API documentation at:
-
 ```
 http://localhost:3000/api-docs
 ```
