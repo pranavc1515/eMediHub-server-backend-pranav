@@ -16,9 +16,18 @@ dotenv.config();
 // Import database connection
 const db = require('./config/database');
 
+// Import models to ensure they're initialized
+require('./models/patient.model');
+require('./models/patientIN.model');
+require('./models/doctor.model');
+require('./models/consultation.model');
+require('./models/patientQueue.model');
+require('./models/prescription.model');
+
 // Import routes
 const authRoutes = require('./routes/auth.routes');
 const patientRoutes = require('./routes/patient.routes');
+const patientINRoutes = require('./routes/patientIN.routes');
 const doctorRoutes = require('./routes/doctor.routes');
 const adminRoutes = require('./routes/admin.routes');
 const videoRoutes = require('./routes/video.routes');
@@ -148,7 +157,27 @@ app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerDocs));
 
 // Routes
 app.use('/api/auth', authRoutes);
-app.use('/api/patients', patientRoutes);
+
+// Use either 3rd party API implementation or internal database implementation for patient routes
+// To switch between implementations, change the USE_INTERNAL_PATIENT_DB environment variable
+// or modify the value below.
+
+const useInternalPatientDb = process.env.USE_INTERNAL_PATIENT_DB === 'true';
+
+if (useInternalPatientDb) {
+  // Use internal database implementation
+  console.log('Using internal patient database implementation');
+  app.use('/api/patients', patientINRoutes);
+} else {
+  // Use 3rd party API implementation
+  console.log('Using 3rd party API patient implementation');
+  app.use('/api/patients', patientRoutes);
+}
+
+// Alternatively, comment out the if-else above and uncomment one of these lines:
+// app.use('/api/patients', patientRoutes);    // Use 3rd party API implementation
+// app.use('/api/patients', patientINRoutes);  // Use internal database implementation
+
 app.use('/api/doctors', doctorRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/video', videoRoutes);
@@ -173,14 +202,16 @@ const PORT = process.env.PORT || 3000;
 db.authenticate()
   .then(() => {
     console.log('Database connection established successfully.');
+    // Sync all models
+    return db.sync(); // <- this creates tables if they don't exist
   })
   .then(() => {
+    console.log('Database models synchronized successfully.');
+    // Start the server after DB and model sync
     server.listen(PORT, () => {
       console.log(`Server is running on port ${PORT}`);
-      console.log(
-        `Swagger documentation available at http://localhost:${PORT}/api-docs`
-      );
-      console.log(`Socket.io is initialized and ready for connections`);
+      console.log(`Swagger docs at http://localhost:${PORT}/api-docs`);
+      console.log(`Socket.io initialized and ready`);
     });
   })
   .catch((err) => {

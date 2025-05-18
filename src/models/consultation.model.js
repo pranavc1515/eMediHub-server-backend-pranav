@@ -1,21 +1,21 @@
 const { DataTypes } = require('sequelize');
 const sequelize = require('../config/database');
-const Patient = require('./patient.model');
+const { PatientIN } = require('./patientIN.model');
 const { DoctorPersonal } = require('./doctor.model');
 
 const Consultation = sequelize.define(
   'Consultation',
   {
     id: {
-      type: DataTypes.UUID,
-      defaultValue: DataTypes.UUIDV4,
+      type: DataTypes.INTEGER,
       primaryKey: true,
+      autoIncrement: true,
     },
     patientId: {
-      type: DataTypes.UUID,
+      type: DataTypes.INTEGER,
       allowNull: false,
       references: {
-        model: 'Patients',
+        model: PatientIN,
         key: 'id',
       },
     },
@@ -23,7 +23,7 @@ const Consultation = sequelize.define(
       type: DataTypes.INTEGER,
       allowNull: false,
       references: {
-        model: 'DoctorPersonals',
+        model: DoctorPersonal,
         key: 'id',
       },
     },
@@ -102,15 +102,19 @@ const Consultation = sequelize.define(
     diagnosis: {
       type: DataTypes.TEXT,
       allowNull: true,
-    }
+    },
   },
   {
+    tableName: 'consultation',
     timestamps: true,
   }
 );
 
 // Establish relationships
-Consultation.belongsTo(Patient, { foreignKey: 'patientId', as: 'patient' });
-Consultation.belongsTo(DoctorPersonal, { foreignKey: 'doctorId', as: 'doctor' });
+Consultation.belongsTo(PatientIN, { foreignKey: 'patientId', as: 'patient' });
+Consultation.belongsTo(DoctorPersonal, {
+  foreignKey: 'doctorId',
+  as: 'doctor',
+});
 
-module.exports = Consultation; 
+module.exports = Consultation;

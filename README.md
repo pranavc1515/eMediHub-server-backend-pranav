@@ -18,38 +18,73 @@ A Node.js backend server for the eMediHub application with PostgreSQL database a
 - PostgreSQL (v12 or higher)
 - npm or yarn package manager
 
-## Setup
+## Setup Instructions
 
-1. Clone the repository:
-```bash
-git clone <repository-url>
-cd emedihub-server-backend
-```
-
+1. Clone the repository
 2. Install dependencies:
-```bash
-npm install
+   ```
+   npm install
+   ```
+3. Configure your environment variables in `.env` file:
+
+   ```
+   DB_NAME=emedihub
+   DB_USER=your-db-username
+   DB_PASSWORD=your-db-password
+   DB_HOST=localhost
+   DB_PORT=3306
+   PORT=3000
+   ```
+
+4. Sync the database tables (creates PatientQueue and other tables if they don't exist):
+
+   ```
+   npm run sync-db
+   ```
+
+5. Start the server:
+   ```
+   npm start
+   ```
+   Or for development with auto-restart:
+   ```
+   npm run dev
+   ```
+
+## PatientQueue Model
+
+The PatientQueue model has been simplified with the following fields:
+
+| Field                 | Description                                        |
+| --------------------- | -------------------------------------------------- |
+| id                    | Primary key (UUID)                                 |
+| patientId             | Foreign key to Patient                             |
+| doctorId              | Foreign key to Doctor                              |
+| status                | ENUM: waiting, in_consultation, done, left         |
+| joinedAt              | Used for queue position calculation                |
+| roomName              | Room name for video chat                           |
+| socketId              | For real-time tracking                             |
+| consultationId        | Link to consultation (when created)                |
+| priority              | For urgent cases (higher number = higher priority) |
+| hasJoinedRoom         | True if patient entered room                       |
+| consultationStartedAt | Track time consultation begins                     |
+
+Position and wait time are now calculated dynamically based on joinedAt and priority.
+
+## Troubleshooting
+
+If you encounter the error "Table 'emedihub.patientqueues' doesn't exist", run:
+
+```
+npm run sync-db
 ```
 
-3. Create a PostgreSQL database:
-```bash
-createdb emedihub_db
-```
-
-4. Configure environment variables:
-- Copy `.env.example` to `.env`
-- Update the values in `.env` with your configuration
-
-5. Start the development server:
-```bash
-npm run dev
-```
-
-The server will start on http://localhost:3000 (or the port specified in your .env file)
+This will create all necessary tables in the database.
 
 ## API Documentation
 
-Once the server is running, you can access the Swagger documentation at:
+Access the API documentation at:
+
 ```
 http://localhost:3000/api-docs
 ```
@@ -73,10 +108,12 @@ src/
 ## API Endpoints
 
 ### Authentication
+
 - POST /api/auth/register - Register a new user
 - POST /api/auth/login - Login user
 
 ### Users
+
 - GET /api/users/profile - Get user profile (authenticated)
 - GET /api/users - Get all users (admin only)
 
@@ -90,4 +127,4 @@ src/
 
 ## License
 
-This project is licensed under the ISC License. "# eMediHub-server-backend-pranav" 
+This project is licensed under the ISC License. "# eMediHub-server-backend-pranav"

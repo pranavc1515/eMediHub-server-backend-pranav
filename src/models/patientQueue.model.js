@@ -1,56 +1,44 @@
-const { DataTypes } = require("sequelize");
-const sequelize = require("../config/database");
-const Patient = require("./patient.model");
-const { DoctorPersonal } = require("./doctor.model");
-const Consultation = require("./consultation.model");
+const { DataTypes } = require('sequelize');
+const sequelize = require('../config/database');
+const { PatientIN } = require('./patientIN.model');
+const { DoctorPersonal } = require('./doctor.model');
+const Consultation = require('./consultation.model');
 
 const PatientQueue = sequelize.define(
-  "PatientQueue",
+  'PatientQueue',
   {
     id: {
-      type: DataTypes.UUID,
-      defaultValue: DataTypes.UUIDV4,
+      type: DataTypes.INTEGER,
       primaryKey: true,
-    },
-    consultationId: {
-      type: DataTypes.UUID,
-      allowNull: true,
-      references: {
-        model: "Consultations",
-        key: "id",
-      },
+      autoIncrement: true,
     },
     patientId: {
-      type: DataTypes.UUID,
+      type: DataTypes.INTEGER,
       allowNull: false,
       references: {
-        model: "Patients",
-        key: "id",
+        model: PatientIN,
+        key: 'id',
       },
     },
     doctorId: {
       type: DataTypes.INTEGER,
       allowNull: false,
       references: {
-        model: "DoctorPersonals",
-        key: "id",
+        model: DoctorPersonal,
+        key: 'id',
       },
-    },
-    status: {
-      type: DataTypes.ENUM("waiting", "in_consultation", "done", "left"),
-      defaultValue: "waiting",
     },
     position: {
       type: DataTypes.INTEGER,
       allowNull: false,
     },
+    status: {
+      type: DataTypes.ENUM('waiting', 'in_consultation', 'done', 'left'),
+      defaultValue: 'waiting',
+    },
     joinedAt: {
       type: DataTypes.DATE,
       defaultValue: DataTypes.NOW,
-    },
-    estimatedWaitTime: {
-      type: DataTypes.INTEGER, // in minutes
-      allowNull: true,
     },
     roomName: {
       type: DataTypes.STRING,
@@ -60,51 +48,67 @@ const PatientQueue = sequelize.define(
       type: DataTypes.STRING,
       allowNull: true,
     },
-    patientFirstName: {
-      type: DataTypes.STRING,
+    consultationId: {
+      type: DataTypes.INTEGER,
       allowNull: true,
+      references: {
+        model: Consultation,
+        key: 'id',
+      },
     },
-    patientLastName: {
-      type: DataTypes.STRING,
+    priority: {
+      type: DataTypes.INTEGER,
+      allowNull: true,
+      defaultValue: 0,
+    },
+    hasJoinedRoom: {
+      type: DataTypes.BOOLEAN,
+      allowNull: false,
+      defaultValue: false,
+    },
+    consultationStartedAt: {
+      type: DataTypes.DATE,
       allowNull: true,
     },
   },
   {
-    tableName: "PatientQueues",
+    tableName: 'patient_queue',
+    createdAt: 'createdAt',
+    updatedAt: 'updatedAt',
     timestamps: true,
   }
 );
 
 // Establish relationships
-PatientQueue.belongsTo(Patient, {
-  foreignKey: "patientId",
-  as: "patient",
-  onDelete: "CASCADE",
+PatientQueue.belongsTo(PatientIN, {
+  foreignKey: 'patientId',
+  as: 'patient',
+  onDelete: 'CASCADE',
 });
 
 PatientQueue.belongsTo(DoctorPersonal, {
-  foreignKey: "doctorId",
-  as: "doctor",
-  onDelete: "CASCADE",
+  foreignKey: 'doctorId',
+  as: 'doctor',
+  onDelete: 'CASCADE',
 });
 
 PatientQueue.belongsTo(Consultation, {
-  foreignKey: "consultationId",
-  as: "consultation",
-  onDelete: "SET NULL",
+  foreignKey: 'consultationId',
+  as: 'consultation',
+  onDelete: 'SET NULL',
 });
 
 // Create hook to copy patient data
 PatientQueue.beforeCreate(async (queue, options) => {
   try {
     // Get patient data
-    const patient = await Patient.findByPk(queue.patientId);
+    const patient = await PatientIN.findByPk(queue.patientId);
     if (patient) {
       queue.patientFirstName = patient.firstName;
       queue.patientLastName = patient.lastName;
     }
   } catch (error) {
-    console.error("Error in PatientQueue beforeCreate hook:", error);
+    console.error('Error in PatientQueue beforeCreate hook:', error);
   }
 });
 
