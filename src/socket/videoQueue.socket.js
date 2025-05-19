@@ -275,7 +275,10 @@ const setupVideoQueueSocket = (io) => {
           order: [['position', 'ASC']],
         });
 
-        io.to(`doctor-${doctorId}`).emit('QUEUE_CHANGED', updatedQueue);
+        const doctorSocketId = getDoctorSocketId(doctorId);
+        if (doctorSocketId) {
+          io.to(doctorSocketId).emit('QUEUE_CHANGED', updatedQueue);
+        }
       } catch (error) {
         console.error('Error in LEAVE_QUEUE:', error);
         socket.emit('ERROR', { message: 'Failed to leave queue' });

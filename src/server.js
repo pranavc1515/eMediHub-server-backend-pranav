@@ -164,15 +164,15 @@ app.use('/api/auth', authRoutes);
 
 const useInternalPatientDb = process.env.USE_INTERNAL_PATIENT_DB === 'true';
 
-if (useInternalPatientDb) {
-  // Use internal database implementation
-  console.log('Using internal patient database implementation');
-  app.use('/api/patients', patientINRoutes);
-} else {
-  // Use 3rd party API implementation
-  console.log('Using 3rd party API patient implementation');
-  app.use('/api/patients', patientRoutes);
-}
+// if (useInternalPatientDb) {
+// Use internal database implementation
+console.log('Using internal patient database implementation');
+app.use('/api/patients', patientINRoutes);
+// } else {
+// Use 3rd party API implementation
+//   console.log('Using 3rd party API patient implementation');
+//   app.use('/api/patients', patientRoutes);
+// }
 
 // Alternatively, comment out the if-else above and uncomment one of these lines:
 // app.use('/api/patients', patientRoutes);    // Use 3rd party API implementation

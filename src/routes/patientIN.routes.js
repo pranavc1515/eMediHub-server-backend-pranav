@@ -1,13 +1,13 @@
 const express = require('express');
 const router = express.Router();
-const patientController = require('../controllers/patient.controller');
+const patientINController = require('../controllers/patientIN.controller');
 
 /**
  * @swagger
  * /api/patients/register-new:
  *   post:
- *     summary: Register a new patient (Proxy to 3rd party API)
- *     tags: [Patients]
+ *     summary: Register a new patient
+ *     tags: [PatientsIN]
  *     requestBody:
  *       required: true
  *       content:
@@ -19,15 +19,17 @@ const patientController = require('../controllers/patient.controller');
  *             properties:
  *               phone:
  *                 type: string
+ *               uid:
+ *                 type: string
  *     responses:
  *       200:
- *         description: Success response from 3rd party API
+ *         description: Registration successful, OTP sent
  *       400:
- *         description: Error response from 3rd party API
+ *         description: Error in registration
  */
 router.post('/register-new', async (req, res) => {
   try {
-    const { phone } = req.body;
+    const { phone, uid } = req.body;
 
     if (!phone) {
       return res.status(400).json({
@@ -37,17 +39,17 @@ router.post('/register-new', async (req, res) => {
     }
 
     // First check if patient exists
-    const patientExistsResult = await patientController.checkPatientExists(
+    const patientExistsResult = await patientINController.checkPatientExists(
       phone
     );
 
     if (patientExistsResult.isUserExist) {
       // If patient exists, proceed with login
-      const loginResult = await patientController.doLogin(phone);
+      const loginResult = await patientINController.doLogin(phone);
       return res.json(loginResult);
     } else {
       // If patient doesn't exist, proceed with registration
-      const result = await patientController.registerNewPatient(phone);
+      const result = await patientINController.registerNewPatient(phone, uid);
       res.json(result);
     }
   } catch (error) {
@@ -62,8 +64,8 @@ router.post('/register-new', async (req, res) => {
  * @swagger
  * /api/patients/validate-otp:
  *   post:
- *     summary: Validate OTP for patient authentication (Proxy to 3rd party API)
- *     tags: [Patients]
+ *     summary: Validate OTP for patient authentication
+ *     tags: [PatientsIN]
  *     requestBody:
  *       required: true
  *       content:
@@ -80,9 +82,9 @@ router.post('/register-new', async (req, res) => {
  *                 type: string
  *     responses:
  *       200:
- *         description: Success response from 3rd party API
+ *         description: OTP validated successfully
  *       400:
- *         description: Error response from 3rd party API
+ *         description: Invalid OTP or error in validation
  */
 router.post('/validate-otp', async (req, res) => {
   try {
@@ -95,7 +97,7 @@ router.post('/validate-otp', async (req, res) => {
       });
     }
 
-    const result = await patientController.validateOTP(phone, otp);
+    const result = await patientINController.validateOTP(phone, otp);
     res.json(result);
   } catch (error) {
     res.status(400).json({
@@ -107,10 +109,10 @@ router.post('/validate-otp', async (req, res) => {
 
 /**
  * @swagger
- * /api/patients/checkPatientExist:
+ * /api/patients/checkUserExist:
  *   post:
- *     summary: Check if patient exists by phone number (Proxy to 3rd party API)
- *     tags: [Patients]
+ *     summary: Check if patient exists by phone number
+ *     tags: [PatientsIN]
  *     requestBody:
  *       required: true
  *       content:
@@ -124,11 +126,11 @@ router.post('/validate-otp', async (req, res) => {
  *                 type: string
  *     responses:
  *       200:
- *         description: Success response from 3rd party API
+ *         description: Success response with existence status
  *       400:
- *         description: Error response from 3rd party API
+ *         description: Error in checking existence
  */
-router.post('/checkPatientExist', async (req, res) => {
+router.post('/checkUserExist', async (req, res) => {
   try {
     const { phone } = req.body;
 
@@ -139,7 +141,52 @@ router.post('/checkPatientExist', async (req, res) => {
       });
     }
 
-    const result = await patientController.checkPatientExists(phone);
+    const result = await patientINController.checkPatientExists(phone);
+    res.json(result);
+  } catch (error) {
+    res.status(400).json({
+      success: false,
+      message: error.message,
+    });
+  }
+});
+
+/**
+ * @swagger
+ * /api/patients/do-login:
+ *   post:
+ *     summary: Login a patient (send OTP)
+ *     tags: [PatientsIN]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - username
+ *             properties:
+ *               username:
+ *                 type: string
+ *                 description: Phone number or email
+ *     responses:
+ *       200:
+ *         description: Login initiated, OTP sent
+ *       400:
+ *         description: Error in login
+ */
+router.post('/do-login', async (req, res) => {
+  try {
+    const { username } = req.body;
+
+    if (!username) {
+      return res.status(400).json({
+        success: false,
+        message: 'Username (phone/email) is required',
+      });
+    }
+
+    const result = await patientINController.doLogin(username);
     res.json(result);
   } catch (error) {
     res.status(400).json({
@@ -153,8 +200,8 @@ router.post('/checkPatientExist', async (req, res) => {
  * @swagger
  * /api/patients/record-personal-details:
  *   put:
- *     summary: Update patient's personal details (Proxy to 3rd party API)
- *     tags: [Patients]
+ *     summary: Update patient's personal details
+ *     tags: [PatientsIN]
  *     security:
  *       - bearerAuth: []
  *     requestBody:
@@ -163,11 +210,37 @@ router.post('/checkPatientExist', async (req, res) => {
  *         application/json:
  *           schema:
  *             type: object
+ *             properties:
+ *               name:
+ *                 type: string
+ *               email:
+ *                 type: string
+ *               age:
+ *                 type: string
+ *               dob:
+ *                 type: string
+ *                 format: date
+ *               gender:
+ *                 type: string
+ *               marital_status:
+ *                 type: string
+ *               height:
+ *                 type: string
+ *               weight:
+ *                 type: string
+ *               diet:
+ *                 type: string
+ *               profession:
+ *                 type: string
+ *               image:
+ *                 type: string
  *     responses:
  *       200:
- *         description: Success response from 3rd party API
+ *         description: Personal details updated successfully
  *       400:
- *         description: Error response from 3rd party API
+ *         description: Error in updating details
+ *       401:
+ *         description: Unauthorized - Missing or invalid token
  */
 router.put('/record-personal-details', async (req, res) => {
   try {
@@ -180,7 +253,7 @@ router.put('/record-personal-details', async (req, res) => {
       });
     }
 
-    const result = await patientController.recordPersonalDetails(
+    const result = await patientINController.recordPersonalDetails(
       req.body,
       authHeader
     );
@@ -197,17 +270,17 @@ router.put('/record-personal-details', async (req, res) => {
  * @swagger
  * /api/patients/profile-details:
  *   get:
- *     summary: Get patient's profile details (Proxy to 3rd party API)
- *     tags: [Patients]
+ *     summary: Get patient's profile details
+ *     tags: [PatientsIN]
  *     security:
  *       - bearerAuth: []
  *     responses:
  *       200:
- *         description: Success response from 3rd party API
+ *         description: Profile details retrieved successfully
  *       401:
  *         description: Unauthorized - Missing or invalid token
  *       400:
- *         description: Error response from 3rd party API
+ *         description: Error in retrieving details
  */
 router.get('/profile-details', async (req, res) => {
   try {
@@ -220,7 +293,7 @@ router.get('/profile-details', async (req, res) => {
       });
     }
 
-    const result = await patientController.getProfileDetails(authHeader);
+    const result = await patientINController.getProfileDetails(authHeader);
     res.json(result);
   } catch (error) {
     res.status(400).json({
@@ -234,17 +307,17 @@ router.get('/profile-details', async (req, res) => {
  * @swagger
  * /api/patients/medical-details:
  *   get:
- *     summary: Get patient's medical details (Proxy to 3rd party API)
- *     tags: [Patients]
+ *     summary: Get patient's medical details
+ *     tags: [PatientsIN]
  *     security:
  *       - bearerAuth: []
  *     responses:
  *       200:
- *         description: Success response from 3rd party API
+ *         description: Medical details retrieved successfully
  *       401:
  *         description: Unauthorized - Missing or invalid token
  *       400:
- *         description: Error response from 3rd party API
+ *         description: Error in retrieving details
  */
 router.get('/medical-details', async (req, res) => {
   try {
@@ -257,7 +330,7 @@ router.get('/medical-details', async (req, res) => {
       });
     }
 
-    const result = await patientController.getMedicalDetails(authHeader);
+    const result = await patientINController.getMedicalDetails(authHeader);
     res.json(result);
   } catch (error) {
     res.status(400).json({
@@ -271,8 +344,8 @@ router.get('/medical-details', async (req, res) => {
  * @swagger
  * /api/patients/medical-details:
  *   post:
- *     summary: Update patient's medical details (Proxy to 3rd party API)
- *     tags: [Patients]
+ *     summary: Update patient's medical details
+ *     tags: [PatientsIN]
  *     security:
  *       - bearerAuth: []
  *     requestBody:
@@ -281,11 +354,26 @@ router.get('/medical-details', async (req, res) => {
  *         application/json:
  *           schema:
  *             type: object
+ *             properties:
+ *               food_allergies:
+ *                 type: string
+ *               drug_allergies:
+ *                 type: string
+ *               blood_group:
+ *                 type: string
+ *               implants:
+ *                 type: string
+ *               surgeries:
+ *                 type: string
+ *               family_medical_history:
+ *                 type: string
  *     responses:
  *       200:
- *         description: Success response from 3rd party API
+ *         description: Medical details updated successfully
  *       400:
- *         description: Error response from 3rd party API
+ *         description: Error in updating details
+ *       401:
+ *         description: Unauthorized - Missing or invalid token
  */
 router.post('/medical-details', async (req, res) => {
   try {
@@ -298,7 +386,7 @@ router.post('/medical-details', async (req, res) => {
       });
     }
 
-    const result = await patientController.updateMedicalDetails(
+    const result = await patientINController.updateMedicalDetails(
       req.body,
       authHeader
     );
@@ -315,8 +403,8 @@ router.post('/medical-details', async (req, res) => {
  * @swagger
  * /api/patients/email-verify:
  *   put:
- *     summary: Verify patient's email (Proxy to 3rd party API)
- *     tags: [Patients]
+ *     summary: Verify patient's email
+ *     tags: [PatientsIN]
  *     security:
  *       - bearerAuth: []
  *     requestBody:
@@ -332,9 +420,11 @@ router.post('/medical-details', async (req, res) => {
  *                 type: string
  *     responses:
  *       200:
- *         description: Success response from 3rd party API
+ *         description: Email verified successfully
  *       400:
- *         description: Error response from 3rd party API
+ *         description: Error in verification
+ *       401:
+ *         description: Unauthorized - Missing or invalid token
  */
 router.put('/email-verify', async (req, res) => {
   try {
@@ -355,7 +445,44 @@ router.put('/email-verify', async (req, res) => {
       });
     }
 
-    const result = await patientController.verifyEmail(email, authHeader);
+    const result = await patientINController.verifyEmail(email, authHeader);
+    res.json(result);
+  } catch (error) {
+    res.status(400).json({
+      success: false,
+      message: error.message,
+    });
+  }
+});
+
+/**
+ * @swagger
+ * /api/patients/do-delete-account:
+ *   delete:
+ *     summary: Delete patient account
+ *     tags: [PatientsIN]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Account deleted successfully
+ *       400:
+ *         description: Error in deleting account
+ *       401:
+ *         description: Unauthorized - Missing or invalid token
+ */
+router.delete('/do-delete-account', async (req, res) => {
+  try {
+    const authHeader = req.headers.authorization;
+
+    if (!authHeader) {
+      return res.status(401).json({
+        success: false,
+        message: 'Authorization header is required',
+      });
+    }
+
+    const result = await patientINController.deleteAccount(authHeader);
     res.json(result);
   } catch (error) {
     res.status(400).json({
@@ -369,17 +496,17 @@ router.put('/email-verify', async (req, res) => {
  * @swagger
  * /api/patients/video-price:
  *   get:
- *     summary: Get video consultation pricing (Proxy to 3rd party API)
- *     tags: [Patients]
+ *     summary: Get video consultation pricing
+ *     tags: [PatientsIN]
  *     security:
  *       - bearerAuth: []
  *     responses:
  *       200:
- *         description: Success response from 3rd party API
+ *         description: Pricing details retrieved successfully
  *       401:
  *         description: Unauthorized - Missing or invalid token
  *       400:
- *         description: Error response from 3rd party API
+ *         description: Error in retrieving pricing
  */
 router.get('/video-price', async (req, res) => {
   try {
@@ -392,7 +519,7 @@ router.get('/video-price', async (req, res) => {
       });
     }
 
-    const result = await patientController.getVideoConsultationPricing(
+    const result = await patientINController.getVideoConsultationPricing(
       authHeader
     );
     res.json(result);
@@ -408,8 +535,8 @@ router.get('/video-price', async (req, res) => {
  * @swagger
  * /api/patients/doctor-price/{doctorId}:
  *   get:
- *     summary: Get doctor's consultation price (Proxy to 3rd party API)
- *     tags: [Patients]
+ *     summary: Get doctor's consultation price
+ *     tags: [PatientsIN]
  *     security:
  *       - bearerAuth: []
  *     parameters:
@@ -420,11 +547,11 @@ router.get('/video-price', async (req, res) => {
  *           type: string
  *     responses:
  *       200:
- *         description: Success response from 3rd party API
+ *         description: Doctor price retrieved successfully
  *       401:
  *         description: Unauthorized - Missing or invalid token
  *       400:
- *         description: Error response from 3rd party API
+ *         description: Error in retrieving doctor price
  */
 router.get('/doctor-price/:doctorId', async (req, res) => {
   try {
@@ -438,7 +565,10 @@ router.get('/doctor-price/:doctorId', async (req, res) => {
       });
     }
 
-    const result = await patientController.getDoctorPrice(doctorId, authHeader);
+    const result = await patientINController.getDoctorPrice(
+      doctorId,
+      authHeader
+    );
     res.json(result);
   } catch (error) {
     res.status(400).json({
