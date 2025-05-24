@@ -1,10 +1,10 @@
-const { DataTypes } = require("sequelize");
-const sequelize = require("../config/database");
-const { PatientIN } = require("./patientIN.model");
-const { DoctorPersonal } = require("./doctor.model");
+const { DataTypes } = require('sequelize');
+const sequelize = require('../config/database');
+const { PatientIN } = require('./patientIN.model');
+const { DoctorPersonal } = require('./doctor.model');
 
 const Consultation = sequelize.define(
-  "Consultation",
+  'Consultation',
   {
     id: {
       type: DataTypes.INTEGER,
@@ -16,7 +16,7 @@ const Consultation = sequelize.define(
       allowNull: false,
       references: {
         model: PatientIN,
-        key: "id",
+        key: 'id',
       },
     },
     doctorId: {
@@ -24,7 +24,7 @@ const Consultation = sequelize.define(
       allowNull: false,
       references: {
         model: DoctorPersonal,
-        key: "id",
+        key: 'id',
       },
     },
     scheduledDate: {
@@ -40,12 +40,12 @@ const Consultation = sequelize.define(
       allowNull: false,
     },
     status: {
-      type: DataTypes.ENUM("pending", "ongoing", "completed", "cancelled"),
-      defaultValue: "pending",
+      type: DataTypes.ENUM('pending', 'ongoing', 'completed', 'cancelled'),
+      defaultValue: 'pending',
     },
     consultationType: {
-      type: DataTypes.ENUM("video", "in-person"),
-      defaultValue: "video",
+      type: DataTypes.ENUM('video', 'in-person'),
+      defaultValue: 'video',
     },
     roomName: {
       type: DataTypes.STRING,
@@ -60,7 +60,7 @@ const Consultation = sequelize.define(
       allowNull: true,
     },
     cancelledBy: {
-      type: DataTypes.ENUM("patient", "doctor"),
+      type: DataTypes.ENUM('patient', 'doctor'),
       allowNull: true,
     },
     actualStartTime: {
@@ -88,7 +88,7 @@ const Consultation = sequelize.define(
       allowNull: true,
     },
     estimatedDuration: {
-      type: DataTypes.INTEGER, // in minutes
+      type: DataTypes.INTEGER,
       defaultValue: 15,
     },
     symptoms: {
@@ -105,16 +105,16 @@ const Consultation = sequelize.define(
     },
   },
   {
-    tableName: "consultation",
+    tableName: 'consultation',
     timestamps: true,
   }
 );
 
 // Establish relationships
-Consultation.belongsTo(PatientIN, { foreignKey: "patientId", as: "patient" });
+Consultation.belongsTo(PatientIN, { foreignKey: 'patientId', as: 'patient' });
 Consultation.belongsTo(DoctorPersonal, {
-  foreignKey: "doctorId",
-  as: "doctor",
+  foreignKey: 'doctorId',
+  as: 'doctor',
 });
 
 module.exports = Consultation;

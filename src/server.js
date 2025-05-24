@@ -1,22 +1,18 @@
+// server.js
 const express = require('express');
+const dotenv = require('dotenv');
 const cors = require('cors');
 const morgan = require('morgan');
 const swaggerUi = require('swagger-ui-express');
 const swaggerJsDoc = require('swagger-jsdoc');
-const dotenv = require('dotenv');
-const http = require('http');
-const socketIO = require('socket.io');
-
-// Import socket handler
-const setupVideoQueueSocket = require('./socket/videoQueue.socket');
 
 // Load environment variables
 dotenv.config();
 
-// Import database connection
+const { app, server } = require('./socket/socket');
 const db = require('./config/database');
 
-// Import models to ensure they're initialized
+// Load models
 require('./models/patient.model');
 require('./models/patientIN.model');
 require('./models/doctor.model');
@@ -24,58 +20,31 @@ require('./models/consultation.model');
 require('./models/patientQueue.model');
 require('./models/prescription.model');
 
-// Import routes
+// Load routes
 const authRoutes = require('./routes/auth.routes');
 const patientRoutes = require('./routes/patient.routes');
 const patientINRoutes = require('./routes/patientIN.routes');
 const doctorRoutes = require('./routes/doctor.routes');
 const adminRoutes = require('./routes/admin.routes');
 const videoRoutes = require('./routes/video.routes');
-const patientConsultationRoutes = require('./routes/patient/consultation.routes');
-const doctorConsultationRoutes = require('./routes/doctor/consultation.routes');
+const patientConsultationRoutes = require('./routes/consultation.routes');
 const paymentRoutes = require('./routes/payment.routes');
 const prescriptionRoutes = require('./routes/prescription.routes');
+const patientQueueRoutes = require('./routes/patientQueue.routes');
 
-const app = express();
-const server = http.createServer(app);
-
-// Define allowed origins
+// CORS settings
 const allowedOrigins = [
   'http://localhost:5173',
   'http://localhost:3000',
   'http://127.0.0.1:5173',
 ];
 
-// Socket.io setup with improved CORS
-const io = socketIO(server, {
-  cors: {
-    origin: allowedOrigins,
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
-    allowedHeaders: [
-      'Content-Type',
-      'Authorization',
-      'X-Requested-With',
-      'Accept',
-      'Origin',
-    ],
-    credentials: true,
-  },
-  transports: ['websocket', 'polling'],
-});
-
-// Setup socket handlers
-setupVideoQueueSocket(io);
-
-// CORS configuration
 app.use(
   cors({
     origin: function (origin, callback) {
-      // Allow requests with no origin (like mobile apps or curl requests)
       if (!origin) return callback(null, true);
-      if (allowedOrigins.indexOf(origin) === -1) {
-        const msg =
-          'The CORS policy for this site does not allow access from the specified Origin.';
-        return callback(new Error(msg), false);
+      if (!allowedOrigins.includes(origin)) {
+        return callback(new Error('CORS policy violation'), false);
       }
       return callback(null, true);
     },
@@ -88,11 +57,11 @@ app.use(
       'Origin',
     ],
     credentials: true,
-    maxAge: 86400, // 24 hours
+    maxAge: 86400,
   })
 );
 
-// Additional headers for CORS
+// Extra CORS headers for legacy compatibility
 app.use((req, res, next) => {
   const origin = req.headers.origin;
   if (allowedOrigins.includes(origin)) {
@@ -107,11 +76,7 @@ app.use((req, res, next) => {
     'Content-Type, Authorization, X-Requested-With, Accept, Origin'
   );
   res.header('Access-Control-Allow-Credentials', true);
-
-  // Handle OPTIONS method
-  if (req.method === 'OPTIONS') {
-    return res.sendStatus(200);
-  }
+  if (req.method === 'OPTIONS') return res.sendStatus(200);
   next();
 });
 
@@ -120,7 +85,7 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(morgan('dev'));
 
-// Swagger configuration
+// Swagger setup
 const swaggerOptions = {
   definition: {
     openapi: '3.0.0',
@@ -129,27 +94,15 @@ const swaggerOptions = {
       version: '1.0.0',
       description: 'API documentation for eMediHub backend services',
     },
-    servers: [
-      {
-        url: `http://localhost:${process.env.PORT || 3000}`,
-      },
-    ],
+    servers: [{ url: `http://localhost:${process.env.PORT || 3000}` }],
     components: {
       securitySchemes: {
-        bearerAuth: {
-          type: 'http',
-          scheme: 'bearer',
-          bearerFormat: 'JWT',
-        },
+        bearerAuth: { type: 'http', scheme: 'bearer', bearerFormat: 'JWT' },
       },
     },
-    security: [
-      {
-        bearerAuth: [],
-      },
-    ],
+    security: [{ bearerAuth: [] }],
   },
-  apis: ['./src/routes/*.js', './src/routes/*/*.js'], // Path to the API routes, including nested routes
+  apis: ['./src/routes/*.js', './src/routes/*/*.js'],
 };
 
 const swaggerDocs = swaggerJsDoc(swaggerOptions);
@@ -157,36 +110,23 @@ app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerDocs));
 
 // Routes
 app.use('/api/auth', authRoutes);
-
-// Use either 3rd party API implementation or internal database implementation for patient routes
-// To switch between implementations, change the USE_INTERNAL_PATIENT_DB environment variable
-// or modify the value below.
-
 const useInternalPatientDb = process.env.USE_INTERNAL_PATIENT_DB === 'true';
-
-// if (useInternalPatientDb) {
-// Use internal database implementation
-console.log('Using internal patient database implementation');
-app.use('/api/patients', patientINRoutes);
-// } else {
-// Use 3rd party API implementation
-//   console.log('Using 3rd party API patient implementation');
-//   app.use('/api/patients', patientRoutes);
-// }
-
-// Alternatively, comment out the if-else above and uncomment one of these lines:
-// app.use('/api/patients', patientRoutes);    // Use 3rd party API implementation
-// app.use('/api/patients', patientINRoutes);  // Use internal database implementation
-
+if (useInternalPatientDb) {
+  console.log('Using internal patient database implementation');
+  app.use('/api/patients', patientINRoutes);
+} else {
+  console.log('Using 3rd party API patient implementation');
+  app.use('/api/patients', patientRoutes);
+}
 app.use('/api/doctors', doctorRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/video', videoRoutes);
 app.use('/api/consultation', patientConsultationRoutes);
-app.use('/api/doctor', doctorConsultationRoutes);
 app.use('/api/payment', paymentRoutes);
 app.use('/api/prescriptions', prescriptionRoutes);
+app.use('/api/patientQueue', patientQueueRoutes);
 
-// Error handling middleware
+// Error handler
 app.use((err, req, res, next) => {
   console.error(err.stack);
   res.status(500).json({
@@ -197,23 +137,18 @@ app.use((err, req, res, next) => {
 });
 
 const PORT = process.env.PORT || 3000;
-
-// Database connection and server start
 db.authenticate()
   .then(() => {
-    console.log('Database connection established successfully.');
-    // Sync all models
-    return db.sync(); // <- this creates tables if they don't exist
+    console.log('Database connected successfully.');
+    return db.sync();
   })
   .then(() => {
-    console.log('Database models synchronized successfully.');
-    // Start the server after DB and model sync
+    console.log('Models synchronized.');
     server.listen(PORT, () => {
-      console.log(`Server is running on port ${PORT}`);
-      console.log(`Swagger docs at http://localhost:${PORT}/api-docs`);
-      console.log(`Socket.io initialized and ready`);
+      console.log(`Server listening on http://localhost:${PORT}`);
+      console.log(`Swagger UI: http://localhost:${PORT}/api-docs`);
     });
   })
   .catch((err) => {
-    console.error('Unable to connect to the database:', err);
+    console.error('Database connection error:', err);
   });

@@ -15,120 +15,14 @@ const setupVideoQueueSocket = (io) => {
     const { userType, userId } = socket.handshake.query;
 
     if (userType === 'doctor' && userId) {
-      doctorSocketMap.set(userId, socket.id);
+      doctorSocketMap.set(Number(userId), socket.id);
       console.log(`Doctor connected: ${userId}, socket: ${socket.id}`);
     }
 
     if (userType === 'patient' && userId) {
-      patientSocketMap.set(userId, socket.id);
+      patientSocketMap.set(Number(userId), socket.id);
       console.log(`Patient connected: ${userId}, socket: ${socket.id}`);
     }
-
-    // Patient joins queue
-    socket.on('PATIENT_JOIN_QUEUE', async (data) => {
-      try {
-        console.log('Doctor_MAP', doctorSocketMap);
-        console.log('Patient_MAP', patientSocketMap);
-        console.log('Patient has entered the queue, PLEASE CHECK', data);
-        const { doctorId, patientId, roomName } = data;
-
-        if (!doctorId || !patientId) {
-          console.error('Missing required data', { doctorId, patientId });
-          socket.emit('ERROR', { message: 'Missing doctor or patient ID' });
-          return;
-        }
-
-        // Get patient data
-        const patient = await PatientIN.findByPk(patientId);
-        if (!patient) {
-          console.error('Patient not found:', patientId);
-          socket.emit('ERROR', { message: 'Patient not found' });
-          return;
-        }
-
-        // Check if patient is already in queue (status waiting or in consultation)
-        const existingEntry = await PatientQueue.findOne({
-          where: {
-            doctorId,
-            patientId,
-            status: ['waiting', 'in_consultation'],
-          },
-        });
-
-        if (existingEntry) {
-          // Patient already in queue — emit their current position
-          socket.emit('QUEUE_POSITION_UPDATE', {
-            position: existingEntry.position,
-            estimatedWait: `${
-              existingEntry.estimatedWaitTime ||
-              (existingEntry.position - 1) * 15
-            } mins`,
-            message: 'You are already in the queue',
-          });
-          return;
-        }
-
-        // Get current queue count (for position assignment)
-        const queueCount = await PatientQueue.count({
-          where: {
-            doctorId,
-            status: ['waiting', 'in_consultation'],
-          },
-        });
-
-        // Create queue entry
-        const queueEntry = await PatientQueue.create(
-          {
-            doctorId,
-            patientId,
-            position: queueCount + 1,
-            roomName,
-            socketId: socket.id,
-            // estimatedWaitTime: queueCount * 15, // 15 minutes per consultation
-          },
-          {
-            hooks: true,
-          }
-        );
-
-        // Notify patient of their position
-        socket.emit('QUEUE_POSITION_UPDATE', {
-          position: queueEntry.position,
-          estimatedWait: `${queueEntry.position * 15} mins`,
-        });
-
-        // Send updated queue to doctor
-        const updatedQueue = await PatientQueue.findAll({
-          where: {
-            doctorId,
-            status: ['waiting', 'in_consultation'],
-          },
-          order: [['position', 'ASC']],
-          attributes: ['id', 'position', 'status', 'patientId', 'roomName'],
-          include: [
-            {
-              model: PatientIN,
-              as: 'patient',
-              attributes: ['name'],
-            },
-          ],
-        });
-
-        console.log(
-          'Sending queue update to doctor:',
-          `doctor-${doctorId}`,
-          JSON.stringify(updatedQueue)
-        );
-
-        const doctorSocketId = getDoctorSocketId(doctorId);
-        if (doctorSocketId) {
-          io.to(doctorSocketId).emit('QUEUE_CHANGED', updatedQueue);
-        }
-      } catch (error) {
-        console.error('Error in PATIENT_JOIN_QUEUE:', error);
-        socket.emit('ERROR', { message: 'Failed to join queue' });
-      }
-    });
 
     // Doctor invites next patient
     socket.on('INVITE_NEXT_PATIENT', async (data) => {
@@ -370,4 +264,10 @@ const setupVideoQueueSocket = (io) => {
   });
 };
 
-module.exports = setupVideoQueueSocket;
+module.exports = {
+  setupVideoQueueSocket,
+  getDoctorSocketId,
+  getPatientSocketId,
+  patientSocketMap,
+  doctorSocketMap,
+};
