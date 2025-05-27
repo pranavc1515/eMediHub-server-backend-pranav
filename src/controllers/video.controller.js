@@ -1,4 +1,4 @@
-const twilio = require("twilio");
+const twilio = require('twilio');
 
 const accountSid = process.env.TWILIO_ACCOUNT_SID;
 const apiKey = process.env.TWILIO_API_KEY;
@@ -31,7 +31,7 @@ const generateToken = async (req, res) => {
   } catch (error) {
     res.status(500).json({
       success: false,
-      message: "Error generating token",
+      message: 'Error generating token',
       error: error.message,
     });
   }
@@ -42,12 +42,12 @@ const createRoom = async (req, res) => {
     const client = twilio(accountSid, twilioAuthToken);
     const { roomName } = req.body;
 
-    console.log("roomName", roomName);
+    console.log('roomName', roomName);
     const room = await client.video.v1.rooms.create({
       uniqueName: roomName,
-      type: "group",
+      type: 'group',
     });
-    console.log("room", room);
+    console.log('room', room);
     res.status(200).json({
       success: true,
       room,
@@ -55,7 +55,7 @@ const createRoom = async (req, res) => {
   } catch (error) {
     res.status(500).json({
       success: false,
-      message: "Error creating room",
+      message: 'Error creating room',
       error: error.message,
     });
   }
@@ -83,7 +83,7 @@ const listRooms = async (req, res) => {
   } catch (error) {
     res.status(500).json({
       success: false,
-      message: "Error fetching rooms",
+      message: 'Error fetching rooms',
       error: error.message,
     });
   }
@@ -108,13 +108,13 @@ const getRoom = async (req, res) => {
     if (error.status === 404) {
       return res.status(404).json({
         success: false,
-        message: "Room not found",
+        message: 'Room not found',
       });
     }
 
     res.status(500).json({
       success: false,
-      message: "Error fetching room details",
+      message: 'Error fetching room details',
       error: error.message,
     });
   }
@@ -130,25 +130,25 @@ const completeRoom = async (req, res) => {
 
     const room = await client.video.v1
       .rooms(roomSid)
-      .update({ status: "completed" });
+      .update({ status: 'completed' });
 
     res.status(200).json({
       success: true,
       room,
-      message: "Room completed successfully",
+      message: 'Room completed successfully',
     });
   } catch (error) {
     // Check if error is because room not found
     if (error.status === 404) {
       return res.status(404).json({
         success: false,
-        message: "Room not found",
+        message: 'Room not found',
       });
     }
 
     res.status(500).json({
       success: false,
-      message: "Error completing room",
+      message: 'Error completing room',
       error: error.message,
     });
   }
@@ -169,7 +169,7 @@ const listParticipants = async (req, res) => {
       if (error.status === 404) {
         return res.status(404).json({
           success: false,
-          message: "Room not found",
+          message: 'Room not found',
         });
       }
       throw error;
@@ -187,7 +187,7 @@ const listParticipants = async (req, res) => {
   } catch (error) {
     res.status(500).json({
       success: false,
-      message: "Error fetching participants",
+      message: 'Error fetching participants',
       error: error.message,
     });
   }
@@ -208,7 +208,7 @@ const disconnectParticipant = async (req, res) => {
       if (error.status === 404) {
         return res.status(404).json({
           success: false,
-          message: "Room not found",
+          message: 'Room not found',
         });
       }
       throw error;
@@ -218,24 +218,24 @@ const disconnectParticipant = async (req, res) => {
     await client.video.v1
       .rooms(roomSid)
       .participants(participantSid)
-      .update({ status: "disconnected" });
+      .update({ status: 'disconnected' });
 
     res.status(200).json({
       success: true,
-      message: "Participant disconnected successfully",
+      message: 'Participant disconnected successfully',
     });
   } catch (error) {
     // Check if error is because participant not found
     if (error.status === 404) {
       return res.status(404).json({
         success: false,
-        message: "Participant not found",
+        message: 'Participant not found',
       });
     }
 
     res.status(500).json({
       success: false,
-      message: "Error disconnecting participant",
+      message: 'Error disconnecting participant',
       error: error.message,
     });
   }

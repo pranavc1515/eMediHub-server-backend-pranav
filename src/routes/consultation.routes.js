@@ -4,16 +4,20 @@ const { authenticateToken } = require('../middleware/auth');
 const consultationController = require('../controllers/consultation.controller');
 
 // Use authentication middleware based on environment
-const useAuth =
-  process.env.NODE_ENV === 'production'
-    ? authenticateToken
-    : (req, res, next) => {
-        // For development, simulate a logged-in patient
-        req.user = {
-          id: req.headers['x-patient-id'] || process.env.TEST_PATIENT_ID,
-        };
-        next();
-      };
+// const useAuth =
+//   process.env.NODE_ENV === 'production'
+//     ? authenticateToken
+//     : (req, res, next) => {
+//         // For development, simulate a logged-in patient
+//         req.user = {
+//           id: req.headers['x-patient-id'] || process.env.TEST_PATIENT_ID,
+//         };
+//         next();
+//       };
+
+router.post('/startConsultation', consultationController.startConsultation);
+
+router.post('/nextConsultation', consultationController.NextConsultation);
 
 /**
  * @swagger
@@ -64,7 +68,7 @@ const useAuth =
  *       500:
  *         description: Server error
  */
-router.get('/history', useAuth, consultationController.getConsultationHistory);
+router.get('/history', consultationController.getConsultationHistory);
 
 /**
  * @swagger
@@ -113,10 +117,6 @@ router.get('/history', useAuth, consultationController.getConsultationHistory);
  *       500:
  *         description: Server error
  */
-router.delete(
-  '/:id/cancel',
-  useAuth,
-  consultationController.cancelConsultation
-);
+router.delete('/:id/cancel', consultationController.cancelConsultation);
 
 module.exports = router;

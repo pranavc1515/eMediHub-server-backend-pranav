@@ -1,78 +1,183 @@
 const Consultation = require('../models/consultation.model');
 const { DoctorPersonal } = require('../models/doctor.model');
-const Patient = require('../models/patient.model');
+const { PatientIN, PatientINDetails } = require('../models/patientIN.model');
 const { Op } = require('sequelize');
+const {
+  getDoctorSocketId,
+  getPatientSocketId,
+  // doctorSocketMap,
+  // patientSocketMap,
+} = require('../socket/videoQueue.socket');
+const { io } = require('../socket/socket');
+const PatientQueue = require('../models/patientQueue.model');
 
-// Start consultation for patient
+// start consultation from doctor side
 const startConsultation = async (req, res) => {
   try {
-    const doctorId = req.user.id;
-    const { id } = req.params;
+    const { doctorId, patientId } = req.body;
 
-    // Find the consultation
-    const consultation = await Consultation.findOne({
-      where: {
-        id,
-        doctorId,
-        status: 'scheduled',
-      },
-      include: [
-        {
-          model: Patient,
-          as: 'patient',
-          attributes: [
-            'id',
-            'firstName',
-            'lastName',
-            'gender',
-            'dateOfBirth',
-            'profilePicture',
-          ],
-        },
-      ],
-    });
-
-    if (!consultation) {
-      return res.status(404).json({
-        success: false,
-        message: 'Consultation not found or cannot be started',
-      });
+    // Validate input
+    if (!doctorId) {
+      return res.status(400).json({ error: 'doctorId is required' });
+    }
+    if (!patientId) {
+      return res.status(400).json({ error: 'patientId is required' });
     }
 
-    // Check if there's already an active consultation
-    const activeConsultation = await Consultation.findOne({
-      where: {
-        doctorId,
-        status: 'in-progress',
-      },
+    // Find active patient in waiting queue
+    const activePatient = await PatientQueue.findOne({
+      where: { patientId, status: 'waiting' },
     });
 
-    if (activeConsultation) {
-      return res.status(400).json({
-        success: false,
-        message:
-          'Cannot start a new consultation while another one is in progress',
-        activeConsultation,
-      });
+    if (!activePatient) {
+      return res
+        .status(404)
+        .json({ error: 'No active patient found in waiting status' });
     }
 
-    // Update consultation status
-    await consultation.update({
-      status: 'in-progress',
-      actualStartTime: new Date(),
+    // Create new consultation
+    const consultation = await Consultation.create({
+      patientId: activePatient.patientId,
+      doctorId,
+      scheduledDate: new Date(),
+      startTime: new Date(),
+      endTime: new Date(Date.now() + 15 * 60000), // 15 minutes from now
+      status: 'ongoing',
+      consultationType: 'video',
+      roomName: activePatient.roomName,
     });
 
-    res.status(200).json({
-      success: true,
+    // Update patient queue status
+    await activePatient.update({
+      status: 'in_consultation',
+      consultationId: consultation.id,
+    });
+
+    const payload = {
+      consultationId: consultation.id,
+      roomName: activePatient.roomName,
+      doctorId,
+      patientId: activePatient.patientId,
+    };
+
+    // Emit socket events if socket IDs available
+    const patientSocketId = await getPatientSocketId(patientId);
+    if (patientSocketId) {
+      io.to(patientSocketId).emit('CONSULTATION_STARTED', payload);
+    }
+
+    const doctorSocketId = await getDoctorSocketId(doctorId);
+    if (doctorSocketId) {
+      io.to(doctorSocketId).emit('CONSULTATION_STARTED', payload);
+    }
+
+    // Send success response
+    return res.status(200).json({
       message: 'Consultation started successfully',
-      data: consultation,
+      consultationId: consultation.id,
+      roomName: activePatient.roomName,
     });
   } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: 'Error starting consultation',
-      error: error.message,
+    console.error('Error in startConsultation:', error);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
+// Start Next Consultation from doctor side
+const NextConsultation = async (req, res) => {
+  try {
+    const { doctorId } = req.body;
+
+    if (!doctorId) {
+      return res.status(400).json({ message: 'doctorId is required' });
+    }
+
+    const doctorSocketId = getDoctorSocketId(doctorId);
+    if (!doctorSocketId) {
+      return res.status(404).json({ message: 'Doctor socket not found' });
+    }
+
+    // Find next waiting patient
+    const nextPatient = await PatientQueue.findOne({
+      where: {
+        doctorId,
+        status: 'waiting',
+      },
+      order: [['position', 'ASC']],
     });
+
+    if (!nextPatient) {
+      return res.status(200).json({ message: 'No waiting patients' });
+    }
+
+    // Create consultation
+    const consultation = await Consultation.create({
+      patientId: nextPatient.patientId,
+      doctorId,
+      scheduledDate: new Date(),
+      startTime: new Date(),
+      endTime: new Date(Date.now() + 15 * 60000),
+      status: 'ongoing',
+      consultationType: 'video',
+      roomName: nextPatient.roomName,
+    });
+
+    // Update patient queue entry
+    await nextPatient.update({
+      status: 'in_consultation',
+      consultationId: consultation.id,
+    });
+
+    // Notify the invited patient (optional, no INVITE_PATIENT used as per instruction)
+    const patientSocketId = getPatientSocketId(nextPatient.patientId);
+    if (patientSocketId) {
+      io.to(patientSocketId).emit('CONSULTATION_STARTED', {
+        consultationId: consultation.id,
+        roomName: nextPatient.roomName,
+      });
+    }
+
+    // Update positions for remaining patients
+    await PatientQueue.increment('position', {
+      where: {
+        doctorId,
+        status: 'waiting',
+        position: { [Op.gt]: nextPatient.position },
+      },
+    });
+
+    // Fetch updated queue
+    const updatedQueue = await PatientQueue.findAll({
+      where: {
+        doctorId,
+        status: 'waiting',
+      },
+    });
+
+    // Notify remaining patients
+    updatedQueue.forEach((patientEntry) => {
+      const patientId =
+        patientEntry.patientId ||
+        (patientEntry.dataValues && patientEntry.dataValues.patientId);
+      if (!patientId) return;
+
+      const socketId = getPatientSocketId(patientId);
+      if (socketId) {
+        io.to(socketId).emit('POSITION_UPDATE', {
+          position: patientEntry.position,
+          estimatedWait: `${(patientEntry.position - 1) * 15} mins`,
+        });
+      }
+    });
+
+    return res.status(200).json({
+      message: 'Consultation started successfully',
+      consultationId: consultation.id,
+      roomName: nextPatient.roomName,
+    });
+  } catch (error) {
+    console.error('Error in startConsultation:', error);
+    return res.status(500).json({ message: 'Failed to start consultation' });
   }
 };
 
@@ -206,8 +311,9 @@ const getConsultationHistory = async (req, res) => {
 };
 
 module.exports = {
+  startConsultation,
+  NextConsultation,
   getConsultationHistory,
   cancelConsultation,
-  startConsultation,
   endConsultation,
 };

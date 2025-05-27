@@ -2,6 +2,7 @@ const PatientQueue = require('../models/patientQueue.model');
 const Consultation = require('../models/consultation.model');
 const { DoctorPersonal } = require('../models/doctor.model');
 const { PatientIN } = require('../models/patientIN.model');
+// const { startConsultation } = require('../controllers/consultation.controller');
 const { Op } = require('sequelize');
 
 const doctorSocketMap = new Map();
@@ -23,6 +24,26 @@ const setupVideoQueueSocket = (io) => {
       patientSocketMap.set(Number(userId), socket.id);
       console.log(`Patient connected: ${userId}, socket: ${socket.id}`);
     }
+    console.log('DoctorMap', doctorSocketMap);
+    console.log('PatientMap', patientSocketMap);
+    // 1. DOCTOR_IS_READY
+    // socket.on('DOCTOR_IS_READY', async (data) => {
+    //   try {
+    //     const result = await startConsultation({
+    //       doctorId: data.doctorId,
+    //       patientId: data.patientId,
+    //     });
+
+    //     // Optionally confirm to sender
+    //     socket.emit('CONSULTATION_CONFIRMED', {
+    //       message: 'Consultation started successfully',
+    //       ...result,
+    //     });
+    //   } catch (error) {
+    //     console.error('Error in DOCTOR_IS_READY:', error);
+    //     socket.emit('ERROR', { message: error.message });
+    //   }
+    // });
 
     // Doctor invites next patient
     socket.on('INVITE_NEXT_PATIENT', async (data) => {
@@ -182,7 +203,6 @@ const setupVideoQueueSocket = (io) => {
     // Join doctor's room for updates
     socket.on('JOIN_DOCTOR_ROOM', (data) => {
       const { doctorId } = data;
-      console.log(`Doctor ${doctorId} joined room: doctor-${doctorId}`);
       socket.join(`doctor-${doctorId}`);
     });
 

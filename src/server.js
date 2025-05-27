@@ -27,7 +27,7 @@ const patientINRoutes = require('./routes/patientIN.routes');
 const doctorRoutes = require('./routes/doctor.routes');
 const adminRoutes = require('./routes/admin.routes');
 const videoRoutes = require('./routes/video.routes');
-const patientConsultationRoutes = require('./routes/consultation.routes');
+const consultationRoutes = require('./routes/consultation.routes');
 const paymentRoutes = require('./routes/payment.routes');
 const prescriptionRoutes = require('./routes/prescription.routes');
 const patientQueueRoutes = require('./routes/patientQueue.routes');
@@ -121,7 +121,7 @@ if (useInternalPatientDb) {
 app.use('/api/doctors', doctorRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/video', videoRoutes);
-app.use('/api/consultation', patientConsultationRoutes);
+app.use('/api/consultation', consultationRoutes);
 app.use('/api/payment', paymentRoutes);
 app.use('/api/prescriptions', prescriptionRoutes);
 app.use('/api/patientQueue', patientQueueRoutes);

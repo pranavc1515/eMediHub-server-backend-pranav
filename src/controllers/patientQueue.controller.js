@@ -96,13 +96,13 @@ const joinPatientQueue = async (req, res) => {
     }
 
     // Check if patient was previously in queue but left
-    const leftEntry = await PatientQueue.findOne({
-      where: {
-        doctorId,
-        patientId,
-        status: 'left',
-      },
-    });
+    // const leftEntry = await PatientQueue.findOne({
+    //   where: {
+    //     doctorId,
+    //     patientId,
+    //     status: 'left',
+    //   },
+    // });
 
     const queueCount = await PatientQueue.count({
       where: {
@@ -138,11 +138,9 @@ const joinPatientQueue = async (req, res) => {
         },
       ],
     });
-
+    // Notify doctor through socket
     const doctorSocketId = getDoctorSocketId(doctorId);
-    console.log('Doctor_Socket_ID', doctorSocketId);
     if (doctorSocketId) {
-      console.log('hitted');
       io.to(doctorSocketId).emit('QUEUE_CHANGED', updatedQueue);
     }
 
@@ -186,7 +184,7 @@ const leavePatientQueue = async (req, res) => {
     await queueEntry.update({ status: 'left' });
 
     // Update positions for remaining patients
-    await PatientQueue.increment('position', {
+    await PatientQueue.decrement('position', {
       where: {
         doctorId,
         status: 'waiting',
@@ -223,6 +221,20 @@ const leavePatientQueue = async (req, res) => {
       io.to(doctorSocketId).emit('QUEUE_CHANGED', updatedQueue);
     }
 
+    // Notify patients
+    updatedQueue.forEach((patientEntry) => {
+      const patientId =
+        patientEntry.patientId ||
+        (patientEntry.dataValues && patientEntry.dataValues.patientId);
+      if (!patientId) return;
+      const socketId = getPatientSocketId(patientId);
+      if (socketId) {
+        io.to(socketId).emit('POSITION_UPDATE', {
+          position: patientEntry.position,
+          estimatedWait: `${(patientEntry.position - 1) * 15} mins`,
+        });
+      }
+    });
     res.status(200).json({
       success: true,
       message: 'Successfully left the queue',
