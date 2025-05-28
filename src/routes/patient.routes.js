@@ -37,7 +37,7 @@ router.post('/register-new', async (req, res) => {
     }
 
     // First check if patient exists
-    const patientExistsResult = await patientController.checkPatientExists(
+    const patientExistsResult = await patientController.checkUserExists(
       phone
     );
 
@@ -163,7 +163,7 @@ router.post('/validate-otp', async (req, res) => {
 
 /**
  * @swagger
- * /api/patients/checkPatientExist:
+ * /api/patients/checkUserExist:
  *   post:
  *     summary: Check if patient exists by phone number (Proxy to 3rd party API)
  *     tags: [Patients]
@@ -184,7 +184,7 @@ router.post('/validate-otp', async (req, res) => {
  *       400:
  *         description: Error response from 3rd party API
  */
-router.post('/checkPatientExist', async (req, res) => {
+router.post('/checkUserExist', async (req, res) => {
   try {
     const { phone } = req.body;
 
@@ -195,7 +195,7 @@ router.post('/checkPatientExist', async (req, res) => {
       });
     }
 
-    const result = await patientController.checkPatientExists(phone);
+    const result = await patientController.checkUserExists(phone);
     res.json(result);
   } catch (error) {
     res.status(400).json({

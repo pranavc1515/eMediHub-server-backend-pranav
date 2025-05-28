@@ -64,7 +64,7 @@ const validateOTP = async (phone, otp) => {
 };
 
 // Check if patient exists
-const checkPatientExists = async (phone) => {
+const checkUserExists = async (phone) => {
   try {
     const response = await axios.post(
       `${API_BASE_URL}/checkUserExist`,
@@ -234,7 +234,7 @@ const getDoctorPrice = async (doctorId, authToken) => {
 module.exports = {
   registerNewPatient,
   validateOTP,
-  checkPatientExists,
+  checkUserExists,
   recordPersonalDetails,
   getProfileDetails,
   getMedicalDetails,

@@ -50,7 +50,7 @@ const registerNewPatient = async (phone, uid = null) => {
 };
 
 // Check if patient exists
-const checkPatientExists = async (phone) => {
+const checkUserExists = async (phone) => {
   try {
     const patient = await PatientIN.findOne({
       where: { phone },
@@ -144,6 +144,7 @@ const validateOTP = async (phone, otp) => {
         diet: patient.details?.diet,
         profession: patient.details?.profession,
         image: patient.details?.image,
+        isProfileComplete: !!patient.email,
       },
     };
   } catch (error) {
@@ -472,7 +473,7 @@ const getDoctorPrice = async (doctorId, authToken) => {
 module.exports = {
   registerNewPatient,
   validateOTP,
-  checkPatientExists,
+  checkUserExists,
   recordPersonalDetails,
   getProfileDetails,
   getMedicalDetails,

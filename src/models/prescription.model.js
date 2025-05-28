@@ -13,7 +13,7 @@ const Prescription = sequelize.define(
       primaryKey: true,
     },
     consultationId: {
-      type: DataTypes.STRING,
+      type: DataTypes.INTEGER,
       allowNull: false,
       references: {
         model: Consultation,
@@ -21,7 +21,7 @@ const Prescription = sequelize.define(
       },
     },
     patientId: {
-      type: DataTypes.STRING,
+      type: DataTypes.INTEGER,
       allowNull: false,
       references: {
         model: PatientIN,
@@ -29,7 +29,7 @@ const Prescription = sequelize.define(
       },
     },
     doctorId: {
-      type: DataTypes.STRING,
+      type: DataTypes.INTEGER,
       allowNull: false,
       references: {
         model: DoctorPersonal,

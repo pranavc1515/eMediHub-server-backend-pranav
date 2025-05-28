@@ -301,7 +301,7 @@ router.post("/validate-otp", async (req, res) => {
 
 /**
  * @swagger
- * /api/doctors/check-exists:
+ * /api/doctors/checkDoctorExists:
  *   post:
  *     summary: Check if doctor exists by phone number
  *     tags: [Doctors]
@@ -361,7 +361,7 @@ router.post("/validate-otp", async (req, res) => {
  *                   type: string
  *                   example: "Invalid phone number format"
  */
-router.post("/check-exists", async (req, res) => {
+router.post("/checkDoctorExists", async (req, res) => {
   try {
     const { phoneNumber } = req.body;
 

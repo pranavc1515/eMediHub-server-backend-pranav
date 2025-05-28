@@ -7,7 +7,7 @@ const {
   getPatientSocketId,
   // doctorSocketMap,
   // patientSocketMap,
-} = require('../socket/videoQueue.socket');
+} = require('../socket/socketHandlers');
 const { io } = require('../socket/socket');
 const PatientQueue = require('../models/patientQueue.model');
 
@@ -165,7 +165,7 @@ const NextConsultation = async (req, res) => {
       if (socketId) {
         io.to(socketId).emit('POSITION_UPDATE', {
           position: patientEntry.position,
-          estimatedWait: `${(patientEntry.position - 1) * 15} mins`,
+          estimatedWait: `${(patientEntry.position - 1) * 10} mins`,
         });
       }
     });

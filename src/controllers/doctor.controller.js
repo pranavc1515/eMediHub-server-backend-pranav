@@ -1,6 +1,9 @@
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
-const { DoctorPersonal, DoctorProfessional } = require('../models/doctor.model');
+const {
+  DoctorPersonal,
+  DoctorProfessional,
+} = require('../models/doctor.model');
 const { Op } = require('sequelize');
 
 // Utility function to generate a random 6-digit OTP
@@ -13,7 +16,9 @@ const registerDoctor = async (phoneNumber) => {
   try {
     // Validate phone number format (10 digits)
     if (!phoneNumber || !/^\+91[0-9]{10}$/.test(phoneNumber)) {
-      throw new Error('Invalid phone number format. Please provide a valid phone number with the country code +91 (e.g., +919876543210).');
+      throw new Error(
+        'Invalid phone number format. Please provide a valid phone number with the country code +91 (e.g., +919876543210).'
+      );
     }
 
     // Check if doctor already exists
@@ -23,13 +28,13 @@ const registerDoctor = async (phoneNumber) => {
       // Create new doctor if not exists
       doctor = await DoctorPersonal.create({
         phoneNumber,
-        status: "Active",
+        status: 'Active',
       });
 
       // Create an empty professional record for the doctor
       await DoctorProfessional.create({
         doctorId: doctor.id,
-        status: "Pending Verification",
+        status: 'Pending Verification',
       });
     }
 
@@ -43,7 +48,7 @@ const registerDoctor = async (phoneNumber) => {
     // 3. Send OTP via SMS gateway
 
     return {
-      phoneNumber
+      phoneNumber,
     };
   } catch (error) {
     throw new Error(`Registration failed: ${error.message}`);
@@ -55,7 +60,9 @@ const loginDoctor = async (phoneNumber) => {
   try {
     // Validate phone number format (10 digits)
     if (!phoneNumber || !/^\+91[0-9]{10}$/.test(phoneNumber)) {
-      throw new Error('Invalid phone number format. Please provide a valid phone number with the country code +91 (e.g., +919876543210).');
+      throw new Error(
+        'Invalid phone number format. Please provide a valid phone number with the country code +91 (e.g., +919876543210).'
+      );
     }
 
     // Check if doctor exists
@@ -75,7 +82,7 @@ const loginDoctor = async (phoneNumber) => {
     // 3. Send OTP via SMS gateway
 
     return {
-      phoneNumber
+      phoneNumber,
     };
   } catch (error) {
     throw new Error(`${error.message}`);
@@ -97,23 +104,37 @@ const validateOTP = async (phoneNumber, otp) => {
     }
 
     // For demo purposes, accept 111111 as valid OTP
-    if (otp !== "111111") {
+    if (otp !== '111111') {
       throw new Error('Invalid OTP');
     }
 
     // Generate JWT token
     const token = jwt.sign(
-      { id: doctor.id, phoneNumber: doctor.phoneNumber, type: "doctor" },
+      { id: doctor.id, phoneNumber: doctor.phoneNumber, type: 'doctor' },
       process.env.JWT_SECRET,
       { expiresIn: process.env.JWT_EXPIRES_IN }
     );
 
     return {
+      status: true,
+      status_code: 200,
+      message: 'OTP verified successfully',
       token,
       doctor: {
         id: doctor.id,
+        name: doctor.fullName,
+        email: doctor.email,
+        gender: doctor.gender,
+        dob: doctor.dob,
+        profilePhoto: doctor.profilePhoto,
+        isPhoneVerify: doctor.isPhoneVerify,
+        isEmailVerify: doctor.isEmailVerify,
+        height: doctor.details?.height,
+        weight: doctor.details?.weight,
+        profession: doctor.details?.profession,
+        image: doctor.details?.image,
         phoneNumber: doctor.phoneNumber,
-        isProfileComplete: !!doctor.fullName,
+        isProfileComplete: !!doctor.email,
       },
     };
   } catch (error) {
@@ -134,10 +155,10 @@ const checkDoctorExists = async (phoneNumber) => {
       exists: !!doctor,
       data: doctor
         ? {
-          id: doctor.id,
-          phoneNumber: doctor.phoneNumber,
-          isProfileComplete: !!doctor.fullName,
-        }
+            id: doctor.id,
+            phoneNumber: doctor.phoneNumber,
+            isProfileComplete: !!doctor.fullName,
+          }
         : null,
     };
   } catch (error) {
@@ -207,38 +228,70 @@ const updateProfessionalDetails = async (doctorId, professionalData) => {
     if (!professional) {
       professional = await DoctorProfessional.create({
         doctorId,
-        status: "Pending Verification",
+        status: 'Pending Verification',
       });
     }
 
     // Check if the registration number is unique if it's being changed
-    if (registrationNumber && registrationNumber !== professional.registrationNumber) {
+    if (
+      registrationNumber &&
+      registrationNumber !== professional.registrationNumber
+    ) {
       const existingWithRegNumber = await DoctorProfessional.findOne({
-        where: { 
+        where: {
           registrationNumber,
-          doctorId: { [Op.ne]: doctorId } // exclude the current doctor
-        }
+          doctorId: { [Op.ne]: doctorId }, // exclude the current doctor
+        },
       });
-      
+
       if (existingWithRegNumber) {
-        throw new Error('This registration number is already in use by another doctor');
+        throw new Error(
+          'This registration number is already in use by another doctor'
+        );
       }
     }
 
     // Update professional details
     await professional.update({
-      qualification: qualification !== undefined ? qualification : professional.qualification,
-      specialization: specialization !== undefined ? specialization : professional.specialization,
-      registrationNumber: registrationNumber !== undefined ? registrationNumber : professional.registrationNumber,
-      registrationState: registrationState !== undefined ? registrationState : professional.registrationState,
-      expiryDate: expiryDate !== undefined ? expiryDate : professional.expiryDate,
-      certificates: certificates !== undefined ? certificates : professional.certificates,
-      clinicName: clinicName !== undefined ? clinicName : professional.clinicName,
-      yearsOfExperience: yearsOfExperience !== undefined ? yearsOfExperience : professional.yearsOfExperience,
-      communicationLanguages: communicationLanguages !== undefined ? communicationLanguages : professional.communicationLanguages,
-      consultationFees: consultationFees !== undefined ? consultationFees : professional.consultationFees,
-      availableDays: availableDays !== undefined ? availableDays : professional.availableDays,
-      status: "Pending Verification",
+      qualification:
+        qualification !== undefined
+          ? qualification
+          : professional.qualification,
+      specialization:
+        specialization !== undefined
+          ? specialization
+          : professional.specialization,
+      registrationNumber:
+        registrationNumber !== undefined
+          ? registrationNumber
+          : professional.registrationNumber,
+      registrationState:
+        registrationState !== undefined
+          ? registrationState
+          : professional.registrationState,
+      expiryDate:
+        expiryDate !== undefined ? expiryDate : professional.expiryDate,
+      certificates:
+        certificates !== undefined ? certificates : professional.certificates,
+      clinicName:
+        clinicName !== undefined ? clinicName : professional.clinicName,
+      yearsOfExperience:
+        yearsOfExperience !== undefined
+          ? yearsOfExperience
+          : professional.yearsOfExperience,
+      communicationLanguages:
+        communicationLanguages !== undefined
+          ? communicationLanguages
+          : professional.communicationLanguages,
+      consultationFees:
+        consultationFees !== undefined
+          ? consultationFees
+          : professional.consultationFees,
+      availableDays:
+        availableDays !== undefined
+          ? availableDays
+          : professional.availableDays,
+      status: 'Pending Verification',
     });
 
     return professional;
@@ -251,7 +304,9 @@ const updateProfessionalDetails = async (doctorId, professionalData) => {
 const updateOnlineStatus = async (doctorId, status) => {
   try {
     if (!['available', 'offline'].includes(status)) {
-      throw new Error('Invalid status. Status must be "available" or "offline"');
+      throw new Error(
+        'Invalid status. Status must be "available" or "offline"'
+      );
     }
 
     const doctor = await DoctorPersonal.findByPk(doctorId);
@@ -262,13 +317,13 @@ const updateOnlineStatus = async (doctorId, status) => {
 
     await doctor.update({
       isOnline: status,
-      lastSeen: status === 'offline' ? new Date() : doctor.lastSeen
+      lastSeen: status === 'offline' ? new Date() : doctor.lastSeen,
     });
 
     return {
       id: doctor.id,
       isOnline: doctor.isOnline,
-      lastSeen: doctor.lastSeen
+      lastSeen: doctor.lastSeen,
     };
   } catch (error) {
     throw new Error(`Error updating online status: ${error.message}`);
@@ -279,7 +334,7 @@ const updateOnlineStatus = async (doctorId, status) => {
 const getOnlineStatus = async (doctorId) => {
   try {
     const doctor = await DoctorPersonal.findByPk(doctorId, {
-      attributes: ['id', 'fullName', 'isOnline', 'lastSeen']
+      attributes: ['id', 'fullName', 'isOnline', 'lastSeen'],
     });
 
     if (!doctor) {
@@ -290,7 +345,7 @@ const getOnlineStatus = async (doctorId) => {
       id: doctor.id,
       fullName: doctor.fullName,
       isOnline: doctor.isOnline,
-      lastSeen: doctor.lastSeen
+      lastSeen: doctor.lastSeen,
     };
   } catch (error) {
     throw new Error(`Error fetching online status: ${error.message}`);
@@ -298,10 +353,15 @@ const getOnlineStatus = async (doctorId) => {
 };
 
 // Get all verified doctors with pagination and search
-const getAllDoctors = async (page = 1, limit = 15, searchQuery = '', specialization = '') => {
+const getAllDoctors = async (
+  page = 1,
+  limit = 15,
+  searchQuery = '',
+  specialization = ''
+) => {
   try {
     const offset = (page - 1) * limit;
-    const whereProf = { status: "Verified" };
+    const whereProf = { status: 'Verified' };
     const wherePers = {};
 
     // Add specialization filter if provided
@@ -312,7 +372,7 @@ const getAllDoctors = async (page = 1, limit = 15, searchQuery = '', specializat
     // Add name search if provided
     if (searchQuery) {
       wherePers.fullName = {
-        [Op.like]: `%${searchQuery}%`
+        [Op.like]: `%${searchQuery}%`,
       };
     }
 
@@ -323,25 +383,25 @@ const getAllDoctors = async (page = 1, limit = 15, searchQuery = '', specializat
         {
           model: DoctorProfessional,
           where: whereProf,
-          attributes: []
-        }
-      ]
+          attributes: [],
+        },
+      ],
     });
 
     // Get doctors with pagination
     const doctors = await DoctorPersonal.findAll({
       where: wherePers,
-      attributes: { exclude: ["password"] },
+      attributes: { exclude: ['password'] },
       include: [
         {
           model: DoctorProfessional,
           where: whereProf,
-          attributes: { exclude: ["id"] }
-        }
+          attributes: { exclude: ['id'] },
+        },
       ],
       offset,
       limit,
-      order: [['fullName', 'ASC']]
+      order: [['fullName', 'ASC']],
     });
 
     return {
@@ -349,7 +409,7 @@ const getAllDoctors = async (page = 1, limit = 15, searchQuery = '', specializat
       totalCount,
       totalPages: Math.ceil(totalCount / limit),
       currentPage: page,
-      pageSize: limit
+      pageSize: limit,
     };
   } catch (error) {
     throw new Error(`Error fetching doctors: ${error.message}`);
@@ -357,11 +417,16 @@ const getAllDoctors = async (page = 1, limit = 15, searchQuery = '', specializat
 };
 
 // Get available doctors with pagination and search
-const getAvailableDoctors = async (page = 1, limit = 15, searchQuery = '', specialization = '') => {
+const getAvailableDoctors = async (
+  page = 1,
+  limit = 15,
+  searchQuery = '',
+  specialization = ''
+) => {
   try {
     const offset = (page - 1) * limit;
-    const whereProf = { status: "Verified" };
-    const wherePers = { isOnline: "available" };
+    const whereProf = { status: 'Verified' };
+    const wherePers = { isOnline: 'available' };
 
     // Add specialization filter if provided
     if (specialization) {
@@ -371,7 +436,7 @@ const getAvailableDoctors = async (page = 1, limit = 15, searchQuery = '', speci
     // Add name search if provided
     if (searchQuery) {
       wherePers.fullName = {
-        [Op.like]: `%${searchQuery}%`
+        [Op.like]: `%${searchQuery}%`,
       };
     }
 
@@ -382,25 +447,25 @@ const getAvailableDoctors = async (page = 1, limit = 15, searchQuery = '', speci
         {
           model: DoctorProfessional,
           where: whereProf,
-          attributes: []
-        }
-      ]
+          attributes: [],
+        },
+      ],
     });
 
     // Get available doctors with pagination
     const doctors = await DoctorPersonal.findAll({
       where: wherePers,
-      attributes: { exclude: ["password"] },
+      attributes: { exclude: ['password'] },
       include: [
         {
           model: DoctorProfessional,
           where: whereProf,
-          attributes: { exclude: ["id"] }
-        }
+          attributes: { exclude: ['id'] },
+        },
       ],
       offset,
       limit,
-      order: [['fullName', 'ASC']]
+      order: [['fullName', 'ASC']],
     });
 
     return {
@@ -408,7 +473,7 @@ const getAvailableDoctors = async (page = 1, limit = 15, searchQuery = '', speci
       totalCount,
       totalPages: Math.ceil(totalCount / limit),
       currentPage: page,
-      pageSize: limit
+      pageSize: limit,
     };
   } catch (error) {
     throw new Error(`Error fetching available doctors: ${error.message}`);
@@ -426,5 +491,5 @@ module.exports = {
   updateOnlineStatus,
   getOnlineStatus,
   getAllDoctors,
-  getAvailableDoctors
+  getAvailableDoctors,
 };

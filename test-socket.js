@@ -123,7 +123,7 @@ function joinQueue() {
 function joinAsDoctor() {
   rl.question("Enter your doctor ID: ", (doctorId) => {
     console.log(`Joining as doctor ${doctorId}...`);
-    socket.emit("JOIN_DOCTOR_ROOM", { doctorId });
+    socket.emit("SWITCH_DOCTOR_AVAILABILITY", { doctorId });
     showMenu();
   });
 }

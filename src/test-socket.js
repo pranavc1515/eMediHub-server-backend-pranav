@@ -36,7 +36,7 @@ rl.question('Enter doctor ID: ', (id) => {
   console.log(`Using doctor ID: ${doctorId}`);
   
   // Join doctor room
-  doctorSocket.emit('JOIN_DOCTOR_ROOM', { doctorId });
+  doctorSocket.emit('SWITCH_DOCTOR_AVAILABILITY', { doctorId });
   
   // Ask for patient ID
   rl.question('Enter patient ID: ', (patientId) => {

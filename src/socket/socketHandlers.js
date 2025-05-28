@@ -26,24 +26,6 @@ const setupVideoQueueSocket = (io) => {
     }
     console.log('DoctorMap', doctorSocketMap);
     console.log('PatientMap', patientSocketMap);
-    // 1. DOCTOR_IS_READY
-    // socket.on('DOCTOR_IS_READY', async (data) => {
-    //   try {
-    //     const result = await startConsultation({
-    //       doctorId: data.doctorId,
-    //       patientId: data.patientId,
-    //     });
-
-    //     // Optionally confirm to sender
-    //     socket.emit('CONSULTATION_CONFIRMED', {
-    //       message: 'Consultation started successfully',
-    //       ...result,
-    //     });
-    //   } catch (error) {
-    //     console.error('Error in DOCTOR_IS_READY:', error);
-    //     socket.emit('ERROR', { message: error.message });
-    //   }
-    // });
 
     // Doctor invites next patient
     socket.on('INVITE_NEXT_PATIENT', async (data) => {
@@ -110,7 +92,7 @@ const setupVideoQueueSocket = (io) => {
         remainingQueue.forEach((patient) => {
           io.to(patient.socketId).emit('QUEUE_POSITION_UPDATE', {
             position: patient.position,
-            estimatedWait: `${(patient.position - 1) * 15} mins`,
+            estimatedWait: `${(patient.position - 1) * 10} mins`,
           });
         });
       } catch (error) {
@@ -201,9 +183,47 @@ const setupVideoQueueSocket = (io) => {
     });
 
     // Join doctor's room for updates
-    socket.on('JOIN_DOCTOR_ROOM', (data) => {
-      const { doctorId } = data;
-      socket.join(`doctor-${doctorId}`);
+    socket.on('SWITCH_DOCTOR_AVAILABILITY', async (data) => {
+      const { doctorId, isAvailable } = data;
+
+      try {
+        const doctor = await DoctorPersonal.findByPk(doctorId);
+
+        if (doctor) {
+          doctor.isOnline = isAvailable ? 'available' : 'offline';
+          await doctor.save();
+
+          // Notify all patients linked to this doctor about status change
+          // Find patients in queue for this doctor (waiting or in consultation)
+          const patients = await PatientQueue.findAll({
+            where: {
+              doctorId,
+              status: ['waiting', 'in_consultation'],
+            },
+            attributes: ['patientId'],
+          });
+
+          // Emit to each patient's socket
+          patients.forEach(({ patientId }) => {
+            const patientSocketId = getPatientSocketId(patientId);
+            if (patientSocketId) {
+              io.to(patientSocketId).emit('DOCTOR_STATUS_CHANGED', {
+                doctorId,
+                isOnline: doctor.isOnline,
+              });
+            }
+          });
+
+          console.log(
+            `Doctor ${doctorId} availability updated to ${doctor.isOnline} and patients notified.`
+          );
+        } else {
+          socket.emit('ERROR', { message: 'Doctor not found' });
+        }
+      } catch (error) {
+        console.error('Error updating doctor availability:', error);
+        socket.emit('ERROR', { message: 'Failed to update availability' });
+      }
     });
 
     // Handle disconnection
