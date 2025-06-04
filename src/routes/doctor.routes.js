@@ -867,6 +867,11 @@ router.put("/verify-email", auth, async (req, res) => {
  *         schema:
  *           type: string
  *         description: Filter by doctor specialization
+ *       - in: query
+ *         name: onlyAvailable
+ *         schema:
+ *           type: boolean
+ *         description: Filter only available doctors
  *     responses:
  *       200:
  *         description: List of doctors retrieved successfully
@@ -879,8 +884,15 @@ router.get("/", async (req, res) => {
     const limit = parseInt(req.query.limit) || 15;
     const search = req.query.search || '';
     const specialization = req.query.specialization || '';
+    const onlyAvailable = req.query.onlyAvailable === 'true';
 
-    const result = await doctorController.getAllDoctors(page, limit, search, specialization);
+    const result = await doctorController.getAllDoctors(
+      page,
+      limit,
+      search,
+      specialization,
+      onlyAvailable
+    );
 
     res.json({
       success: true,

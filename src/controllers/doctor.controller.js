@@ -357,7 +357,8 @@ const getAllDoctors = async (
   page = 1,
   limit = 15,
   searchQuery = '',
-  specialization = ''
+  specialization = '',
+  onlyAvailable = false
 ) => {
   try {
     const offset = (page - 1) * limit;
@@ -365,7 +366,7 @@ const getAllDoctors = async (
     const wherePers = {};
 
     // Add specialization filter if provided
-    if (specialization) {
+    if (specialization && specialization !== 'all') {
       whereProf.specialization = specialization;
     }
 
@@ -376,39 +377,62 @@ const getAllDoctors = async (
       };
     }
 
-    // Get total count for pagination
-    const totalCount = await DoctorPersonal.count({
-      where: wherePers,
-      include: [
-        {
-          model: DoctorProfessional,
-          where: whereProf,
-          attributes: [],
-        },
-      ],
-    });
+    // Add availability filter if requested
+    if (onlyAvailable) {
+      wherePers.isOnline = 'available';
+    }
 
-    // Get doctors with pagination
-    const doctors = await DoctorPersonal.findAll({
-      where: wherePers,
-      attributes: { exclude: ['password'] },
-      include: [
-        {
-          model: DoctorProfessional,
-          where: whereProf,
-          attributes: { exclude: ['id'] },
+    // Get total count and doctors in a single query using Promise.all
+    const [totalCount, doctors] = await Promise.all([
+      DoctorPersonal.count({
+        where: wherePers,
+        include: [
+          {
+            model: DoctorProfessional,
+            where: whereProf,
+            attributes: [],
+          },
+        ],
+      }),
+      DoctorPersonal.findAll({
+        where: wherePers,
+        attributes: {
+          exclude: ['password'],
         },
-      ],
-      offset,
-      limit,
-      order: [['fullName', 'ASC']],
-    });
+        include: [
+          {
+            model: DoctorProfessional,
+            where: whereProf,
+            attributes: { exclude: ['id'] },
+          },
+        ],
+        offset,
+        limit,
+        order: [['fullName', 'ASC']],
+      }),
+    ]);
+
+    const totalPages = Math.ceil(totalCount / limit);
+
+    // Validate page number
+    const validatedPage = page > totalPages ? 1 : page;
+
+    if (validatedPage !== page) {
+      // If page number was invalid, recursively call with valid page
+      return getAllDoctors(
+        validatedPage,
+        limit,
+        searchQuery,
+        specialization,
+        onlyAvailable
+      );
+    }
 
     return {
       doctors,
       totalCount,
-      totalPages: Math.ceil(totalCount / limit),
-      currentPage: page,
+      totalPages,
+      currentPage: validatedPage,
       pageSize: limit,
     };
   } catch (error) {
