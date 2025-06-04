@@ -310,10 +310,133 @@ const getConsultationHistory = async (req, res) => {
   }
 };
 
+// Get all consultations for a specific doctor
+const getDoctorConsultations = async (req, res) => {
+  try {
+    const { doctorId } = req.query;
+    const { page = 1, limit = 10, status, consultationType, sortBy = 'createdAt', sortOrder = 'DESC' } = req.query;
+
+    // Validate doctorId is provided
+    if (!doctorId) {
+      return res.status(400).json({
+        success: false,
+        message: 'Doctor ID is required as a query parameter',
+      });
+    }
+
+    // Validate doctorId is a valid number
+    if (isNaN(doctorId)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Doctor ID must be a valid number',
+      });
+    }
+
+    // Check if doctor exists
+    const doctor = await DoctorPersonal.findByPk(doctorId);
+    if (!doctor) {
+      return res.status(404).json({
+        success: false,
+        message: 'Doctor not found',
+      });
+    }
+
+    // Calculate pagination
+    const offset = (page - 1) * limit;
+
+    // Build where clause
+    const whereClause = { doctorId: parseInt(doctorId) };
+
+    // Add optional filters
+    if (status) {
+      whereClause.status = status;
+    }
+    if (consultationType) {
+      whereClause.consultationType = consultationType;
+    }
+
+    // Validate sort fields
+    const allowedSortFields = ['createdAt', 'updatedAt', 'scheduledDate', 'startTime', 'status'];
+    const sortField = allowedSortFields.includes(sortBy) ? sortBy : 'createdAt';
+    const sortDirection = ['ASC', 'DESC'].includes(sortOrder.toUpperCase()) ? sortOrder.toUpperCase() : 'DESC';
+
+    // Fetch consultations with pagination
+    const { count, rows: consultations } = await Consultation.findAndCountAll({
+      where: whereClause,
+      include: [
+        {
+          model: PatientIN,
+          as: 'patient',
+          attributes: ['id', 'fullName', 'phoneNumber', 'email', 'gender', 'age'],
+          include: [
+            {
+              model: PatientINDetails,
+              as: 'details',
+              attributes: ['address', 'emergencyContact', 'bloodGroup'],
+              required: false,
+            },
+          ],
+        },
+        {
+          model: DoctorPersonal,
+          as: 'doctor',
+          attributes: ['id', 'fullName', 'email', 'phoneNumber', 'profilePhoto'],
+        },
+      ],
+      order: [[sortField, sortDirection]],
+      limit: parseInt(limit),
+      offset: parseInt(offset),
+      distinct: true,
+    });
+
+    // Calculate total pages
+    const totalPages = Math.ceil(count / limit);
+
+    // Prepare response
+    const response = {
+      success: true,
+      message: 'Consultations retrieved successfully',
+      data: {
+        consultations,
+        pagination: {
+          totalConsultations: count,
+          totalPages,
+          currentPage: parseInt(page),
+          limit: parseInt(limit),
+          hasNextPage: page < totalPages,
+          hasPrevPage: page > 1,
+        },
+        doctor: {
+          id: doctor.id,
+          fullName: doctor.fullName,
+          email: doctor.email,
+          phoneNumber: doctor.phoneNumber,
+        },
+        filters: {
+          status: status || 'all',
+          consultationType: consultationType || 'all',
+          sortBy: sortField,
+          sortOrder: sortDirection,
+        },
+      },
+    };
+
+    return res.status(200).json(response);
+  } catch (error) {
+    console.error('Error in getDoctorConsultations:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Internal server error while fetching doctor consultations',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined,
+    });
+  }
+};
+
 module.exports = {
   startConsultation,
   NextConsultation,
   getConsultationHistory,
   cancelConsultation,
   endConsultation,
+  getDoctorConsultations,
 };
