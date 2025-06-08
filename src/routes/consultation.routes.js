@@ -68,7 +68,7 @@ router.post('/nextConsultation', consultationController.NextConsultation);
  *       500:
  *         description: Server error
  */
-router.get('/history', consultationController.getConsultationHistory);
+router.get('/history', consultationController.getDoctorConsultationHistory);
 
 /**
  * @swagger
@@ -118,5 +118,157 @@ router.get('/history', consultationController.getConsultationHistory);
  *         description: Server error
  */
 router.delete('/:id/cancel', consultationController.cancelConsultation);
+
+/**
+ * @swagger
+ * /api/consultation/doctor/{doctorId}/history:
+ *   get:
+ *     summary: Get doctor's consultation history
+ *     tags: [Doctor Consultations]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: doctorId
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         description: Doctor's ID
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *           default: 1
+ *         description: Page number for pagination
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           default: 15
+ *         description: Number of items per page
+ *     responses:
+ *       200:
+ *         description: Doctor's consultation history with pagination
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 consultations:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                     properties:
+ *                       id:
+ *                         type: integer
+ *                       status:
+ *                         type: string
+ *                       patient:
+ *                         type: object
+ *                         properties:
+ *                           id:
+ *                             type: integer
+ *                           firstName:
+ *                             type: string
+ *                           lastName:
+ *                             type: string
+ *                 totalCount:
+ *                   type: integer
+ *                   example: 100
+ *                 totalPages:
+ *                   type: integer
+ *                   example: 7
+ *                 currentPage:
+ *                   type: integer
+ *                   example: 1
+ *                 pageSize:
+ *                   type: integer
+ *                   example: 15
+ *       400:
+ *         description: Doctor ID is required
+ *       500:
+ *         description: Server error
+ */
+router.get('/doctor/:doctorId/history', consultationController.getDoctorConsultationHistory);
+
+/**
+ * @swagger
+ * /api/consultation/patient/{patientId}/history:
+ *   get:
+ *     summary: Get patient's consultation history
+ *     tags: [Patient Consultations]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: patientId
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         description: Patient's ID
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *           default: 1
+ *         description: Page number for pagination
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           default: 15
+ *         description: Number of items per page
+ *     responses:
+ *       200:
+ *         description: Patient's consultation history with pagination
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 consultations:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                     properties:
+ *                       id:
+ *                         type: integer
+ *                       status:
+ *                         type: string
+ *                       doctor:
+ *                         type: object
+ *                         properties:
+ *                           id:
+ *                             type: integer
+ *                           firstName:
+ *                             type: string
+ *                           lastName:
+ *                             type: string
+ *                           specialization:
+ *                             type: string
+ *                 totalCount:
+ *                   type: integer
+ *                   example: 100
+ *                 totalPages:
+ *                   type: integer
+ *                   example: 7
+ *                 currentPage:
+ *                   type: integer
+ *                   example: 1
+ *                 pageSize:
+ *                   type: integer
+ *                   example: 15
+ *       400:
+ *         description: Patient ID is required
+ *       500:
+ *         description: Server error
+ */
+router.get('/patient/:patientId/history', consultationController.getPatientConsultationHistory);
 
 module.exports = router;

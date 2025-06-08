@@ -377,9 +377,9 @@ const getAllDoctors = async (
       };
     }
 
-    // Add availability filter if requested
-    if (onlyAvailable) {
-      wherePers.isOnline = 'available';
+    // Add availability filter based on onlyAvailable parameter
+    if (onlyAvailable !== undefined) {
+      wherePers.isOnline = onlyAvailable ? 'available' : 'offline';
     }
 
     // Get total count and doctors in a single query using Promise.all

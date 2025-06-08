@@ -1,5 +1,8 @@
 const Consultation = require('../models/consultation.model');
-const { DoctorPersonal } = require('../models/doctor.model');
+const {
+  DoctorPersonal,
+  DoctorProfessional,
+} = require('../models/doctor.model');
 const { PatientIN, PatientINDetails } = require('../models/patientIN.model');
 const { Op } = require('sequelize');
 const {
@@ -268,38 +271,58 @@ const endConsultation = async (req, res) => {
   }
 };
 
-// Get consultation history for a patient
-const getConsultationHistory = async (req, res) => {
+// Get consultation history for a doctor
+const getDoctorConsultationHistory = async (req, res) => {
   try {
-    const patientId = req.user.id;
-    const { page = 1, limit = 10 } = req.query;
+    const { doctorId } = req.params;
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 15;
     const offset = (page - 1) * limit;
 
-    const { count, rows: consultations } = await Consultation.findAndCountAll({
+    if (!doctorId) {
+      return res.status(400).json({
+        success: false,
+        message: 'Doctor ID is required',
+      });
+    }
+
+    // Get total count for pagination
+    const totalCount = await Consultation.count({
       where: {
-        patientId,
+        doctorId,
         status: {
-          [Op.in]: ['completed', 'cancelled'],
+          [Op.in]: ['completed', 'ongoing'],
+        },
+      },
+    });
+
+    // Get consultations with pagination
+    const consultations = await Consultation.findAll({
+      where: {
+        doctorId,
+        status: {
+          [Op.in]: ['completed', 'ongoing'],
         },
       },
       include: [
         {
-          model: DoctorPersonal,
-          as: 'doctor',
-          attributes: ['id', 'fullName', 'specialization', 'profilePhoto'],
+          model: PatientIN,
+          as: 'patient',
+          attributes: ['id', 'name', 'email', 'phone'],
         },
       ],
-      order: [['updatedAt', 'DESC']],
-      limit: parseInt(limit),
-      offset: parseInt(offset),
+      order: [['createdAt', 'DESC']],
+      offset,
+      limit,
     });
 
     res.status(200).json({
       success: true,
-      count,
-      totalPages: Math.ceil(count / limit),
-      currentPage: parseInt(page),
-      data: consultations,
+      consultations,
+      totalCount,
+      totalPages: Math.ceil(totalCount / limit),
+      currentPage: page,
+      pageSize: limit,
     });
   } catch (error) {
     res.status(500).json({
@@ -310,10 +333,70 @@ const getConsultationHistory = async (req, res) => {
   }
 };
 
+// Get consultation history for a patient
+const getPatientConsultationHistory = async (req, res) => {
+  try {
+    const { patientId } = req.params;
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 15;
+    const offset = (page - 1) * limit;
+
+    if (!patientId) {
+      return res.status(400).json({
+        success: false,
+        message: 'Patient ID is required',
+      });
+    }
+
+    // Total count
+    const totalCount = await Consultation.count({
+      where: { patientId },
+    });
+
+    // Fetch consultations with doctor info
+    const consultations = await Consultation.findAll({
+      where: { patientId },
+      include: [
+        {
+          model: DoctorPersonal,
+          as: 'doctor', // Only if you aliased it like that, otherwise remove `as`
+          attributes: ['id', 'fullName', 'email', 'profilePhoto', 'isOnline'],
+          include: [
+            {
+              model: DoctorProfessional,
+              attributes: ['specialization', 'yearsOfExperience'],
+            },
+          ],
+        },
+      ],
+      order: [['createdAt', 'DESC']],
+      offset,
+      limit,
+    });
+
+    res.status(200).json({
+      success: true,
+      consultations,
+      totalCount,
+      totalPages: Math.ceil(totalCount / limit),
+      currentPage: page,
+      pageSize: limit,
+    });
+  } catch (error) {
+    console.error('Error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching patient consultation history',
+      error: error.message,
+    });
+  }
+};
+
 module.exports = {
   startConsultation,
   NextConsultation,
-  getConsultationHistory,
+  getDoctorConsultationHistory,
+  getPatientConsultationHistory,
   cancelConsultation,
   endConsultation,
 };

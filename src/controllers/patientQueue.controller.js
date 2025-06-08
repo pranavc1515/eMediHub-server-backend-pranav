@@ -14,6 +14,17 @@ const { v4: uuidv4 } = require('uuid');
 const getPatientQueue = async (req, res) => {
   try {
     const { doctorId } = req.params;
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 15;
+    const offset = (page - 1) * limit;
+
+    // Get total count for pagination
+    const totalCount = await PatientQueue.count({
+      where: {
+        doctorId,
+        status: ['waiting', 'in_consultation'],
+      },
+    });
 
     const queue = await PatientQueue.findAll({
       where: {
@@ -23,23 +34,34 @@ const getPatientQueue = async (req, res) => {
       order: [['position', 'ASC']],
       include: [
         {
-          model: PatientIN, // model object, not string
-          as: 'patient', // must match your PatientQueue association alias
+          model: PatientIN,
+          as: 'patient',
           attributes: ['name', 'phone', 'email'],
           include: [
             {
               model: PatientINDetails,
-              as: 'details', // alias from PatientIN.hasOne
+              as: 'details',
               attributes: ['height', 'weight', 'diet', 'blood_group'],
             },
           ],
         },
       ],
+      offset,
+      limit,
     });
+
+    const totalPages = Math.ceil(totalCount / limit);
+    const validatedPage = page > totalPages ? 1 : page;
 
     res.status(200).json({
       success: true,
-      data: queue,
+      data: {
+        queue,
+        totalCount,
+        totalPages,
+        currentPage: validatedPage,
+        pageSize: limit,
+      },
     });
   } catch (error) {
     console.error('Error in getPatientQueue:', error);

@@ -3,6 +3,7 @@ const router = express.Router();
 const { auth } = require("../middleware/auth.middleware");
 const doctorController = require("../controllers/doctor.controller");
 const { DoctorPersonal, DoctorProfessional } = require("../models/doctor.model");
+const { upload, uploadToS3 } = require("../utils/fileUpload");
 
 /**
  * @swagger
@@ -392,7 +393,7 @@ router.post("/checkDoctorExists", async (req, res) => {
  * @swagger
  * /api/doctors/personal-details/{id}:
  *   put:
- *     summary: Update doctor's personal details
+ *     summary: Update doctor's personal details including certificates
  *     tags: [Doctors]
  *     security:
  *       - bearerAuth: []
@@ -406,83 +407,32 @@ router.post("/checkDoctorExists", async (req, res) => {
  *     requestBody:
  *       required: true
  *       content:
- *         application/json:
+ *         multipart/form-data:
  *           schema:
  *             type: object
  *             properties:
  *               fullName:
  *                 type: string
- *                 description: Full name of the doctor
  *               email:
  *                 type: string
- *                 format: email
- *                 description: Email address of the doctor
  *               gender:
  *                 type: string
- *                 enum: [Male, Female, Other]
- *                 description: Gender of the doctor
  *               dob:
  *                 type: string
- *                 format: date
- *                 description: Date of birth (YYYY-MM-DD)
- *               profilePhoto:
- *                 type: string
- *                 description: URL of the profile photo
+ *               certificates:
+ *                 type: array
+ *                 items:
+ *                   type: string
+ *                   format: binary
  *     responses:
  *       200:
  *         description: Personal details updated successfully
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 success:
- *                   type: boolean
- *                   example: true
- *                 message:
- *                   type: string
- *                   example: "Personal details updated successfully"
- *                 data:
- *                   type: object
- *                   properties:
- *                     id:
- *                       type: integer
- *                       example: 1
- *                     fullName:
- *                       type: string
- *                       example: "Dr. John Doe"
- *                     phoneNumber:
- *                       type: string
- *                       example: "+919876543210"
- *                     email:
- *                       type: string
- *                       example: "john.doe@example.com"
- *                     gender:
- *                       type: string
- *                       example: "Male"
- *                     dob:
- *                       type: string
- *                       example: "1980-01-01"
- *                     profilePhoto:
- *                       type: string
- *                       example: "https://example.com/photos/doctor.jpg"
- *                     status:
- *                       type: string
- *                       example: "Active"
- *                     emailVerified:
- *                       type: boolean
- *                       example: true
- *       401:
- *         description: Unauthorized - Invalid or missing authentication token
- *       403:
- *         description: Forbidden - User not authorized to update this doctor's profile
- *       404:
- *         description: Doctor not found
  */
-router.put("/personal-details/:id", auth, async (req, res) => {
+router.put("/personal-details/:id", auth, upload.array('certificates', 5), async (req, res) => {
   try {
-    const { fullName, email, gender, dob, profilePhoto } = req.body;
+    const { fullName, email, gender, dob } = req.body;
     const doctorId = parseInt(req.params.id);
+    const files = req.files;
 
     // Check if the authenticated user is a doctor
     if (!req.user || !req.user.id) {
@@ -510,13 +460,32 @@ router.put("/personal-details/:id", auth, async (req, res) => {
       });
     }
 
+    // Upload certificates to S3 if files are present
+    let certificateUrls = doctor.certificates || [];
+    if (files && files.length > 0) {
+      const uploadPromises = files.map(file => 
+        uploadToS3(file, `doctor-${doctorId}`, doctorId.toString(), '')
+      );
+      
+      const uploadResults = await Promise.all(uploadPromises);
+      const newCertificates = uploadResults
+        .filter(result => result.success)
+        .map(result => ({
+          url: result.fileUrl,
+          name: result.filename,
+          uploadedAt: new Date().toISOString()
+        }));
+      
+      certificateUrls = [...certificateUrls, ...newCertificates];
+    }
+
     // Update doctor personal details
     const updatedDoctor = await doctor.update({
       fullName: fullName || doctor.fullName,
       email: email || doctor.email,
       gender: gender || doctor.gender,
       dob: dob || doctor.dob,
-      profilePhoto: profilePhoto || doctor.profilePhoto,
+      certificates: certificateUrls
     });
 
     res.json({
@@ -525,6 +494,7 @@ router.put("/personal-details/:id", auth, async (req, res) => {
       data: updatedDoctor,
     });
   } catch (error) {
+    console.error('Error updating personal details:', error);
     if (error.message.includes('not found')) {
       return res.status(404).json({
         success: false,
