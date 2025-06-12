@@ -848,38 +848,38 @@ router.put("/verify-email", auth, async (req, res) => {
  *       400:
  *         description: Error fetching doctors
  */
-router.get("/", async (req, res) => {
-  try {
-    const page = parseInt(req.query.page) || 1;
-    const limit = parseInt(req.query.limit) || 15;
-    const search = req.query.search || '';
-    const specialization = req.query.specialization || '';
-    const onlyAvailable = req.query.onlyAvailable === 'true';
+  router.get("/", async (req, res) => {
+    try {
+      const page = parseInt(req.query.page) || 1;
+      const limit = parseInt(req.query.limit) || 15;
+      const search = req.query.search || '';
+      const specialization = req.query.specialization || '';
+      const onlyAvailable = req.query.onlyAvailable === 'true';
 
-    const result = await doctorController.getAllDoctors(
-      page,
-      limit,
-      search,
-      specialization,
-      onlyAvailable
-    );
+      const result = await doctorController.getAllDoctors(
+        page,
+        limit,
+        search,
+        specialization,
+        onlyAvailable
+      );
 
-    res.json({
-      success: true,
-      count: result.totalCount,
-      totalPages: result.totalPages,
-      currentPage: result.currentPage,
-      pageSize: result.pageSize,
-      data: result.doctors,
-    });
-  } catch (error) {
-    res.status(400).json({
-      success: false,
-      message: "Error fetching doctors",
-      error: error.message,
-    });
-  }
-});
+      res.json({
+        success: true,
+        count: result.totalCount,
+        totalPages: result.totalPages,
+        currentPage: result.currentPage,
+        pageSize: result.pageSize,
+        data: result.doctors,
+      });
+    } catch (error) {
+      res.status(400).json({
+        success: false,
+        message: "Error fetching doctors",
+        error: error.message,
+      });
+    }
+  });
 
 /**
  * @swagger

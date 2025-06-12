@@ -136,7 +136,7 @@ const DoctorProfessional = sequelize.define(
     },
     status: {
       type: DataTypes.ENUM('Verified', 'Unverified', 'Pending Verification'),
-      defaultValue: 'Pending Verification',
+      defaultValue: 'Unverified',
     },
     yearsOfExperience: {
       type: DataTypes.INTEGER,
