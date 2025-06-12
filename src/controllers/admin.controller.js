@@ -1,4 +1,4 @@
-const Doctor = require('../models/doctor.model');
+const { DoctorPersonal: Doctor, DoctorProfessional } = require('../models/doctor.model');
 const Patient = require('../models/patient.model');
 
 // Get all doctors (Admin only)
@@ -12,16 +12,22 @@ exports.getAllDoctors = async (req, res) => {
       where.isVerified = verified === 'true';
     }
 
-    if (specialization) {
-      where.specialization = specialization;
-    }
+    // Build include for professional info if needed
+    const include = [
+      {
+        model: DoctorProfessional,
+        attributes: ['specialization', 'qualification', 'status'],
+        where: specialization ? { specialization } : undefined,
+      },
+    ];
 
     const { count, rows: doctors } = await Doctor.findAndCountAll({
       where,
-      attributes: { exclude: ['password'] },
+      include,
+      attributes: { exclude: ['password', 'createdAt', 'updatedAt'] },
       limit: parseInt(limit),
       offset: parseInt(offset),
-      order: [['createdAt', 'DESC']],
+      order: [['timeCreated', 'DESC']],
     });
 
     res.json({
@@ -217,9 +223,15 @@ exports.getDashboardStatistics = async (req, res) => {
 
     // Get recent registrations
     const recentDoctors = await Doctor.findAll({
-      attributes: ['id', 'firstName', 'lastName', 'specialization', 'createdAt'],
+      attributes: ['id', 'fullName', 'timeCreated', 'isVerified'],
+      include: [
+        {
+          model: DoctorProfessional,
+          attributes: ['specialization'],
+        },
+      ],
       limit: 5,
-      order: [['createdAt', 'DESC']],
+      order: [['timeCreated', 'DESC']],
     });
 
     const recentPatients = await Patient.findAll({

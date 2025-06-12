@@ -68,6 +68,11 @@ const DoctorPersonal = sequelize.define(
       type: DataTypes.DATE,
       defaultValue: DataTypes.NOW,
     },
+    // Indicates whether admin has verified this doctor
+    isVerified: {
+      type: DataTypes.BOOLEAN,
+      defaultValue: false,
+    },
   },
   {
     tableName: 'doctor_personal',
