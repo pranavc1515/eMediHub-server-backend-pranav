@@ -12,6 +12,9 @@ const allowedOrigins = [
   'http://localhost:3000',
   'http://127.0.0.1:5173',
   'http://128.199.26.111:5173',
+  'http://128.199.26.111:3000',
+  'https://128.199.26.111:5173',
+  'https://128.199.26.111:3000',
 ];
 
 const io = new Server(server, {
@@ -28,6 +31,8 @@ const io = new Server(server, {
     credentials: true,
   },
   transports: ['websocket', 'polling'],
+  secure: true,
+  rejectUnauthorized: false,
 });
 
 setupVideoQueueSocket(io);

@@ -6,7 +6,7 @@
 const { io } = require("socket.io-client");
 const readline = require('readline');
 
-const API_URL = process.env.API_URL || "http://localhost:3000";
+const API_URL = process.env.API_URL || "https://128.199.26.111:3000";
 
 // Create interface for command-line input
 const rl = readline.createInterface({
@@ -18,7 +18,13 @@ console.log(`Connecting to ${API_URL}...`);
 
 // Connect to server
 const socket = io(API_URL, {
-  transports: ['websocket', 'polling']
+  transports: ['websocket', 'polling'],
+  secure: true,
+  rejectUnauthorized: false,
+  reconnection: true,
+  reconnectionAttempts: 5,
+  reconnectionDelay: 1000,
+  timeout: 20000
 });
 
 // Socket event handlers
@@ -31,8 +37,8 @@ socket.on("connect_error", (error) => {
   console.error(`❌ Connection error: ${error.message}`);
 });
 
-socket.on("disconnect", () => {
-  console.log("❌ Disconnected from server");
+socket.on("disconnect", (reason) => {
+  console.log(`❌ Disconnected from server: ${reason}`);
 });
 
 // Queue event handlers
