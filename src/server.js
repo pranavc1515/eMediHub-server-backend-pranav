@@ -32,23 +32,10 @@ const paymentRoutes = require('./routes/payment.routes');
 const prescriptionRoutes = require('./routes/prescription.routes');
 const patientQueueRoutes = require('./routes/patientQueue.routes');
 
-// CORS settings
-const allowedOrigins = [
-  'http://localhost:5173',
-  'http://localhost:3000',
-  'http://127.0.0.1:5173',
-  'http://128.199.26.111:5173',
-];
-
+// Configure CORS to allow all origins
 app.use(
   cors({
-    origin: function (origin, callback) {
-      if (!origin) return callback(null, true);
-      if (!allowedOrigins.includes(origin)) {
-        return callback(new Error('CORS policy violation'), false);
-      }
-      return callback(null, true);
-    },
+    origin: '*',
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
     allowedHeaders: [
       'Content-Type',
@@ -62,12 +49,9 @@ app.use(
   })
 );
 
-// Extra CORS headers for legacy compatibility
+// Additional headers for all requests
 app.use((req, res, next) => {
-  const origin = req.headers.origin;
-  if (allowedOrigins.includes(origin)) {
-    res.header('Access-Control-Allow-Origin', origin);
-  }
+  res.header('Access-Control-Allow-Origin', '*');
   res.header(
     'Access-Control-Allow-Methods',
     'GET, POST, PUT, DELETE, OPTIONS, PATCH'
