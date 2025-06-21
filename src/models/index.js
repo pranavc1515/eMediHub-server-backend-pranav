@@ -59,6 +59,13 @@ const setupAssociations = () => {
     as: 'consultation',
     onDelete: 'SET NULL',
   });
+
+  // Reverse association: Consultation has many PatientQueue entries
+  Consultation.hasMany(PatientQueue, {
+    foreignKey: 'consultationId',
+    as: 'queueEntries',
+    onDelete: 'SET NULL',
+  });
 };
 
 // Initialize all models

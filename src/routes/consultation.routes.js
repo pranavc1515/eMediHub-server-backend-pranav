@@ -19,6 +19,10 @@ router.post('/startConsultation', consultationController.startConsultation);
 
 router.post('/nextConsultation', consultationController.NextConsultation);
 
+// New routes for consultation status and reconnection
+router.post('/checkStatus', consultationController.checkConsultationStatus);
+router.post('/rejoin', consultationController.rejoinConsultation);
+
 /**
  * @swagger
  * /api/consultation/history:

@@ -117,4 +117,16 @@ Consultation.belongsTo(DoctorPersonal, {
   as: 'doctor',
 });
 
+// Set up association with PatientQueue after model is defined
+// This will be called after all models are loaded to avoid circular dependency
+Consultation.associate = (models) => {
+  if (models.PatientQueue) {
+    Consultation.hasMany(models.PatientQueue, {
+      foreignKey: 'consultationId',
+      as: 'queueEntries',
+      onDelete: 'SET NULL',
+    });
+  }
+};
+
 module.exports = Consultation;

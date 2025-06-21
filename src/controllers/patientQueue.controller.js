@@ -1,5 +1,6 @@
 const PatientQueue = require('../models/patientQueue.model');
 const { PatientIN, PatientINDetails } = require('../models/patientIN.model');
+const Consultation = require('../models/consultation.model');
 const { Op } = require('sequelize');
 const {
   getDoctorSocketId,
@@ -95,6 +96,55 @@ const joinPatientQueue = async (req, res) => {
       });
     }
 
+    // Check if patient is already in an ongoing consultation with this doctor
+    const ongoingConsultation = await Consultation.findOne({
+      where: {
+        patientId,
+        doctorId,
+        status: 'ongoing',
+      },
+      include: [
+        {
+          model: PatientQueue,
+          as: 'queue',
+          required: false,
+        },
+      ],
+    });
+
+    if (ongoingConsultation) {
+      // Patient is already in consultation - redirect to rejoin
+      return res.status(200).json({
+        success: true,
+        message: 'Already in consultation',
+        action: 'rejoin',
+        consultationId: ongoingConsultation.id,
+        roomName: ongoingConsultation.roomName,
+        position: 0, // Position 0 for ongoing consultation
+      });
+    }
+
+    // Check if patient is already in queue with status 'in_consultation'
+    const existingInConsultation = await PatientQueue.findOne({
+      where: {
+        doctorId,
+        patientId,
+        status: 'in_consultation',
+      },
+    });
+
+    if (existingInConsultation) {
+      // Patient is in consultation - cannot join queue again
+      return res.status(400).json({
+        success: false,
+        message: 'Patient is currently in consultation and cannot join queue',
+        action: 'in_consultation',
+        consultationId: existingInConsultation.consultationId,
+        roomName: existingInConsultation.roomName,
+        position: 0,
+      });
+    }
+
     // Check if patient is already in queue with status 'waiting'
     const existingWaiting = await PatientQueue.findOne({
       where: {
@@ -108,6 +158,7 @@ const joinPatientQueue = async (req, res) => {
       return res.status(200).json({
         success: true,
         message: 'Already in queue',
+        action: 'waiting',
         position: existingWaiting.position,
         roomName: existingWaiting.roomName,
         estimatedWait: `${
@@ -116,15 +167,6 @@ const joinPatientQueue = async (req, res) => {
         } mins`,
       });
     }
-
-    // Check if patient was previously in queue but left
-    // const leftEntry = await PatientQueue.findOne({
-    //   where: {
-    //     doctorId,
-    //     patientId,
-    //     status: 'left',
-    //   },
-    // });
 
     const queueCount = await PatientQueue.count({
       where: {
@@ -160,6 +202,7 @@ const joinPatientQueue = async (req, res) => {
         },
       ],
     });
+    
     // Notify doctor through socket
     const doctorSocketId = getDoctorSocketId(doctorId);
     if (doctorSocketId) {
@@ -169,6 +212,7 @@ const joinPatientQueue = async (req, res) => {
     return res.status(200).json({
       success: true,
       message: 'Patient joined the queue',
+      action: 'joined',
       position: queueEntry.position,
       roomName,
       estimatedWait: `${queueEntry.position * 10} mins`,
@@ -182,6 +226,7 @@ const joinPatientQueue = async (req, res) => {
     });
   }
 };
+
 // Leave patient queue
 const leavePatientQueue = async (req, res) => {
   try {

@@ -27,15 +27,33 @@ const startConsultation = async (req, res) => {
       return res.status(400).json({ error: 'patientId is required' });
     }
 
+    // Check if there's already an ongoing consultation
+    const existingConsultation = await Consultation.findOne({
+      where: {
+        doctorId,
+        patientId,
+        status: 'ongoing',
+      },
+    });
+
+    if (existingConsultation) {
+      return res.status(200).json({
+        message: 'Consultation already exists',
+        action: 'rejoin',
+        consultationId: existingConsultation.id,
+        roomName: existingConsultation.roomName,
+      });
+    }
+
     // Find active patient in waiting queue
     const activePatient = await PatientQueue.findOne({
-      where: { patientId, status: 'waiting' },
+      where: { patientId, doctorId, status: 'waiting' },
     });
 
     if (!activePatient) {
-      return res
-        .status(404)
-        .json({ error: 'No active patient found in waiting status' });
+      return res.status(404).json({
+        error: 'No active patient found in waiting status for this doctor',
+      });
     }
 
     // Create new consultation
@@ -50,10 +68,11 @@ const startConsultation = async (req, res) => {
       roomName: activePatient.roomName,
     });
 
-    // Update patient queue status
+    // Update patient queue status with position 0 for ongoing consultation
     await activePatient.update({
       status: 'in_consultation',
       consultationId: consultation.id,
+      position: 0, // Set position to 0 for ongoing consultation
     });
 
     const payload = {
@@ -392,6 +411,180 @@ const getPatientConsultationHistory = async (req, res) => {
   }
 };
 
+// Check consultation status and handle reconnection
+const checkConsultationStatus = async (req, res) => {
+  try {
+    const { doctorId, patientId } = req.body;
+
+    if (!doctorId || !patientId) {
+      return res.status(400).json({
+        success: false,
+        message: 'Both doctorId and patientId are required',
+      });
+    }
+
+    // Check for ongoing consultation
+    const ongoingConsultation = await Consultation.findOne({
+      where: {
+        doctorId,
+        patientId,
+        status: 'ongoing',
+      },
+    });
+
+    if (ongoingConsultation) {
+      return res.status(200).json({
+        success: true,
+        status: 'ongoing',
+        action: 'rejoin',
+        consultationId: ongoingConsultation.id,
+        roomName: ongoingConsultation.roomName,
+        message: 'Ongoing consultation found - ready to rejoin',
+      });
+    }
+
+    // Check for completed consultation
+    const completedConsultation = await Consultation.findOne({
+      where: {
+        doctorId,
+        patientId,
+        status: 'completed',
+      },
+      order: [['updatedAt', 'DESC']],
+    });
+
+    if (completedConsultation) {
+      return res.status(200).json({
+        success: true,
+        status: 'completed',
+        action: 'ended',
+        consultationId: completedConsultation.id,
+        message: 'Consultation has ended',
+      });
+    }
+
+    // Check queue status
+    const queueEntry = await PatientQueue.findOne({
+      where: {
+        doctorId,
+        patientId,
+        status: ['waiting', 'in_consultation'],
+      },
+    });
+
+    if (queueEntry) {
+      return res.status(200).json({
+        success: true,
+        status: queueEntry.status,
+        action: queueEntry.status === 'waiting' ? 'wait' : 'rejoin',
+        position: queueEntry.position,
+        roomName: queueEntry.roomName,
+        consultationId: queueEntry.consultationId,
+        estimatedWait:
+          queueEntry.status === 'waiting'
+            ? `${(queueEntry.position - 1) * 10} mins`
+            : null,
+        message:
+          queueEntry.status === 'waiting'
+            ? 'Patient is in queue'
+            : 'Patient is in consultation',
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      status: 'none',
+      action: 'none',
+      message: 'No active consultation or queue entry found',
+    });
+  } catch (error) {
+    console.error('Error in checkConsultationStatus:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Error checking consultation status',
+      error: error.message,
+    });
+  }
+};
+
+// Rejoin consultation endpoint
+const rejoinConsultation = async (req, res) => {
+  try {
+    const { consultationId, userId, userType } = req.body;
+
+    if (!consultationId || !userId || !userType) {
+      return res.status(400).json({
+        success: false,
+        message: 'consultationId, userId, and userType are required',
+      });
+    }
+
+    const consultation = await Consultation.findOne({
+      where: {
+        id: consultationId,
+        status: 'ongoing',
+      },
+    });
+
+    if (!consultation) {
+      return res.status(404).json({
+        success: false,
+        message: 'Active consultation not found or has ended',
+        action: 'ended',
+      });
+    }
+
+    // Verify user is part of this consultation
+    if (
+      (userType === 'doctor' && consultation.doctorId !== parseInt(userId)) ||
+      (userType === 'patient' && consultation.patientId !== parseInt(userId))
+    ) {
+      return res.status(403).json({
+        success: false,
+        message: 'Unauthorized access to this consultation',
+      });
+    }
+
+    // Emit socket events to notify other participant about reconnection
+    const payload = {
+      consultationId: consultation.id,
+      roomName: consultation.roomName,
+      doctorId: consultation.doctorId,
+      patientId: consultation.patientId,
+      action: 'participant_rejoined',
+      rejoiner: userType,
+    };
+
+    if (userType === 'patient') {
+      const doctorSocketId = getDoctorSocketId(consultation.doctorId);
+      if (doctorSocketId) {
+        io.to(doctorSocketId).emit('PARTICIPANT_REJOINED', payload);
+      }
+    } else {
+      const patientSocketId = getPatientSocketId(consultation.patientId);
+      if (patientSocketId) {
+        io.to(patientSocketId).emit('PARTICIPANT_REJOINED', payload);
+      }
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: 'Successfully rejoined consultation',
+      consultationId: consultation.id,
+      roomName: consultation.roomName,
+      doctorId: consultation.doctorId,
+      patientId: consultation.patientId,
+    });
+  } catch (error) {
+    console.error('Error in rejoinConsultation:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Error rejoining consultation',
+      error: error.message,
+    });
+  }
+};
+
 module.exports = {
   startConsultation,
   NextConsultation,
@@ -399,4 +592,6 @@ module.exports = {
   getPatientConsultationHistory,
   cancelConsultation,
   endConsultation,
+  checkConsultationStatus,
+  rejoinConsultation,
 };
