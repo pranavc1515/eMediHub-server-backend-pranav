@@ -330,26 +330,44 @@ const cancelConsultation = async (req, res) => {
   }
 };
 
-// End consultation
-const endConsultation = async (req, res) => {
+// End consultation (Doctor only)
+const endConsultationByDoctor = async (req, res) => {
   try {
-    const doctorId = req.user.id;
-    const { id } = req.params;
-    const { notes } = req.body;
+    const { consultationId, doctorId, notes } = req.body;
+
+    if (!consultationId || !doctorId) {
+      return res.status(400).json({
+        success: false,
+        message: 'consultationId and doctorId are required',
+      });
+    }
+
+    // Convert consultationId and doctorId to numbers to ensure proper database query
+    const consultationIdNum = parseInt(consultationId);
+    const doctorIdNum = parseInt(doctorId);
+
+    if (isNaN(consultationIdNum) || isNaN(doctorIdNum)) {
+      return res.status(400).json({
+        success: false,
+        message: 'consultationId and doctorId must be valid numbers',
+      });
+    }
+
+    console.log(`Doctor ${doctorIdNum} attempting to end consultation ${consultationIdNum}`);
 
     // Find the consultation
     const consultation = await Consultation.findOne({
       where: {
-        id,
-        doctorId,
-        status: 'in-progress',
+        id: consultationIdNum,
+        doctorId: doctorIdNum,
+        status: 'ongoing',
       },
     });
 
     if (!consultation) {
       return res.status(404).json({
         success: false,
-        message: 'Active consultation not found',
+        message: 'Active consultation not found or unauthorized',
       });
     }
 
@@ -360,13 +378,114 @@ const endConsultation = async (req, res) => {
       actualEndTime: new Date(),
     });
 
-    res.status(200).json({
+    console.log(`Consultation ${consultationIdNum} marked as completed`);
+
+    // Find and update queue entry
+    const queueEntry = await PatientQueue.findOne({
+      where: { 
+        consultationId: consultationIdNum,
+        doctorId: doctorIdNum,
+        status: 'in_consultation' 
+      }
+    });
+
+    if (queueEntry) {
+      await queueEntry.update({ 
+        status: 'done'
+        // Use 'done' status as per PatientQueue model ENUM definition
+      });
+
+      console.log(`Queue entry updated for patient ${queueEntry.patientId}`);
+
+      // Import socket utilities
+      const {
+        getDoctorSocketId,
+        getPatientSocketId,
+      } = require('../socket/socketHandlers');
+      const { io } = require('../socket/socket');
+
+      // Notify patient that consultation has ended
+      const patientSocketId = getPatientSocketId(queueEntry.patientId);
+      if (patientSocketId) {
+        io.to(patientSocketId).emit('CONSULTATION_ENDED', {
+          consultationId: consultationIdNum,
+          message: 'Consultation has been completed by the doctor',
+          doctorId: doctorIdNum,
+          patientId: queueEntry.patientId,
+        });
+        console.log(`Consultation end notification sent to patient ${queueEntry.patientId}`);
+      }
+
+      // Recalculate positions for remaining waiting patients
+      const waitingPatients = await PatientQueue.findAll({
+        where: {
+          doctorId: doctorIdNum,
+          status: 'waiting',
+        },
+        order: [['createdAt', 'ASC']], // Order by creation time to maintain FIFO
+      });
+
+      // Update positions sequentially
+      for (let i = 0; i < waitingPatients.length; i++) {
+        await waitingPatients[i].update({ position: i + 1 });
+      }
+
+      console.log(`Queue positions recalculated for doctor ${doctorIdNum}`);
+
+      // Get updated queue for broadcasting (exclude 'done' and 'left' statuses)
+      const updatedQueue = await PatientQueue.findAll({
+        where: {
+          doctorId: doctorIdNum,
+          status: ['waiting', 'in_consultation'],
+        },
+        order: [['position', 'ASC']],
+        include: [
+          {
+            model: PatientIN,
+            as: 'patient',
+            attributes: ['name', 'phone', 'email'],
+          },
+        ],
+      });
+
+      // Notify doctor about queue changes
+      const doctorSocketId = getDoctorSocketId(doctorIdNum);
+      if (doctorSocketId) {
+        io.to(doctorSocketId).emit('QUEUE_CHANGED', updatedQueue);
+        console.log(`Queue change notification sent to doctor ${doctorIdNum}`);
+      }
+
+      // Notify all patients in queue about position updates
+      updatedQueue.forEach((entry) => {
+        const patientSocketId = getPatientSocketId(entry.patientId);
+        if (patientSocketId) {
+          const positionData = {
+            position: entry.position,
+            estimatedWait: entry.status === 'in_consultation' 
+              ? '0 mins' 
+              : `${Math.max(0, (entry.position - 1) * 10)} mins`,
+            status: entry.status,
+            queueLength: updatedQueue.filter(e => e.status === 'waiting').length,
+            totalInQueue: updatedQueue.length,
+          };
+          
+          io.to(patientSocketId).emit('POSITION_UPDATE', positionData);
+          console.log(`Position update sent to patient ${entry.patientId}:`, positionData);
+        }
+      });
+    }
+
+    console.log(`Consultation ${consultationIdNum} ended successfully by doctor ${doctorIdNum}`);
+
+    return res.status(200).json({
       success: true,
       message: 'Consultation ended successfully',
-      data: consultation,
+      consultationId: consultationIdNum,
+      endTime: consultation.actualEndTime,
     });
   } catch (error) {
-    res.status(500).json({
+    console.error('Error in endConsultationByDoctor:', error);
+    return res.status(500).json({
       success: false,
       message: 'Error ending consultation',
       error: error.message,
@@ -791,7 +910,7 @@ module.exports = {
   getDoctorConsultationHistory,
   getPatientConsultationHistory,
   cancelConsultation,
-  endConsultation,
+  endConsultationByDoctor,
   checkConsultationStatus,
   rejoinConsultation,
 };

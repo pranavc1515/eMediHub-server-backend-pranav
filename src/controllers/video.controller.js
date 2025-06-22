@@ -5,11 +5,27 @@ const apiKey = process.env.TWILIO_API_KEY;
 const apiSecret = process.env.TWILIO_API_SECRET;
 const twilioAuthToken = process.env.TWILIO_AUTH_TOKEN;
 
+// Validate Twilio configuration
+if (!accountSid || !twilioAuthToken) {
+  console.error('Missing required Twilio credentials: TWILIO_ACCOUNT_SID or TWILIO_AUTH_TOKEN');
+}
+
+if (!apiKey || !apiSecret) {
+  console.warn('Missing Twilio API credentials: TWILIO_API_KEY or TWILIO_API_SECRET. Some features may not work.');
+}
+
 const generateToken = async (req, res) => {
   try {
     const { roomName } = req.body;
     // Use authenticated user's information or fallback to provided identity
     const identity = req.user ? req.user.id : req.body.identity;
+
+    if (!apiKey || !apiSecret) {
+      return res.status(500).json({
+        success: false,
+        message: 'Twilio API credentials not configured',
+      });
+    }
 
     const AccessToken = twilio.jwt.AccessToken;
     const VideoGrant = AccessToken.VideoGrant;
@@ -29,6 +45,7 @@ const generateToken = async (req, res) => {
       token: token.toJwt(),
     });
   } catch (error) {
+    console.error('Error generating token:', error);
     res.status(500).json({
       success: false,
       message: 'Error generating token',
@@ -42,17 +59,18 @@ const createRoom = async (req, res) => {
     const client = twilio(accountSid, twilioAuthToken);
     const { roomName } = req.body;
 
-    console.log('roomName', roomName);
+    console.log('Creating room:', roomName);
     const room = await client.video.v1.rooms.create({
       uniqueName: roomName,
       type: 'group',
     });
-    console.log('room', room);
+    console.log('Room created successfully:', room.sid);
     res.status(200).json({
       success: true,
       room,
     });
   } catch (error) {
+    console.error('Error creating room:', error);
     res.status(500).json({
       success: false,
       message: 'Error creating room',
@@ -66,7 +84,7 @@ const createRoom = async (req, res) => {
  */
 const listRooms = async (req, res) => {
   try {
-    const client = twilio(accountSid, apiKey, apiSecret);
+    const client = twilio(accountSid, twilioAuthToken);
     const { status } = req.query;
 
     let rooms;
@@ -81,6 +99,7 @@ const listRooms = async (req, res) => {
       rooms,
     });
   } catch (error) {
+    console.error('Error fetching rooms:', error);
     res.status(500).json({
       success: false,
       message: 'Error fetching rooms',
@@ -94,7 +113,7 @@ const listRooms = async (req, res) => {
  */
 const getRoom = async (req, res) => {
   try {
-    const client = twilio(accountSid, apiKey, apiSecret);
+    const client = twilio(accountSid, twilioAuthToken);
     const { roomSid } = req.params;
 
     const room = await client.video.v1.rooms(roomSid).fetch();
@@ -104,6 +123,7 @@ const getRoom = async (req, res) => {
       room,
     });
   } catch (error) {
+    console.error('Error fetching room details:', error);
     // Check if error is because room not found
     if (error.status === 404) {
       return res.status(404).json({
@@ -125,7 +145,7 @@ const getRoom = async (req, res) => {
  */
 const completeRoom = async (req, res) => {
   try {
-    const client = twilio(accountSid, apiKey, apiSecret);
+    const client = twilio(accountSid, twilioAuthToken);
     const { roomSid } = req.params;
 
     const room = await client.video.v1
@@ -138,6 +158,7 @@ const completeRoom = async (req, res) => {
       message: 'Room completed successfully',
     });
   } catch (error) {
+    console.error('Error completing room:', error);
     // Check if error is because room not found
     if (error.status === 404) {
       return res.status(404).json({
@@ -159,13 +180,17 @@ const completeRoom = async (req, res) => {
  */
 const listParticipants = async (req, res) => {
   try {
-    const client = twilio(accountSid, apiKey, apiSecret);
+    const client = twilio(accountSid, twilioAuthToken);
     const { roomSid } = req.params;
+
+    console.log('Fetching participants for room:', roomSid);
 
     // First check if room exists
     try {
-      await client.video.v1.rooms(roomSid).fetch();
+      const room = await client.video.v1.rooms(roomSid).fetch();
+      console.log('Room found:', room.status);
     } catch (error) {
+      console.error('Room not found:', roomSid, error.message);
       if (error.status === 404) {
         return res.status(404).json({
           success: false,
@@ -180,11 +205,14 @@ const listParticipants = async (req, res) => {
       .rooms(roomSid)
       .participants.list();
 
+    console.log('Participants found:', participants.length);
+
     res.status(200).json({
       success: true,
       participants,
     });
   } catch (error) {
+    console.error('Error fetching participants:', error);
     res.status(500).json({
       success: false,
       message: 'Error fetching participants',
@@ -198,7 +226,7 @@ const listParticipants = async (req, res) => {
  */
 const disconnectParticipant = async (req, res) => {
   try {
-    const client = twilio(accountSid, apiKey, apiSecret);
+    const client = twilio(accountSid, twilioAuthToken);
     const { roomSid, participantSid } = req.params;
 
     // First check if room exists
@@ -225,6 +253,7 @@ const disconnectParticipant = async (req, res) => {
       message: 'Participant disconnected successfully',
     });
   } catch (error) {
+    console.error('Error disconnecting participant:', error);
     // Check if error is because participant not found
     if (error.status === 404) {
       return res.status(404).json({

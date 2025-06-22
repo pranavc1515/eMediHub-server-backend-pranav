@@ -22,6 +22,7 @@ router.post('/nextConsultation', consultationController.NextConsultation);
 // New routes for consultation status and reconnection
 router.post('/checkStatus', consultationController.checkConsultationStatus);
 router.post('/rejoin', consultationController.rejoinConsultation);
+router.post('/endConsultation', consultationController.endConsultationByDoctor);
 
 /**
  * @swagger

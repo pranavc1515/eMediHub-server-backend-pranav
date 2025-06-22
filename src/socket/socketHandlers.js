@@ -188,7 +188,7 @@ const setupVideoQueueSocket = (io) => {
         });
 
         if (queueEntry) {
-          await queueEntry.update({ status: 'completed' });
+          await queueEntry.update({ status: 'done' }); // Use 'done' for PatientQueue ENUM
 
           // Notify patient that consultation has ended
           const patientSocketId = getPatientSocketId(queueEntry.patientId);
