@@ -19,6 +19,8 @@ require('./models/doctor.model');
 require('./models/consultation.model');
 require('./models/patientQueue.model');
 require('./models/prescription.model');
+require('./models/family.model');
+require('./models/user.model');
 
 // Load routes
 const authRoutes = require('./routes/auth.routes');
@@ -31,6 +33,7 @@ const consultationRoutes = require('./routes/consultation.routes');
 const paymentRoutes = require('./routes/payment.routes');
 const prescriptionRoutes = require('./routes/prescription.routes');
 const patientQueueRoutes = require('./routes/patientQueue.routes');
+const familyRoutes = require('./routes/family.routes');
 
 // Configure CORS to allow all origins
 app.use(
@@ -110,6 +113,7 @@ app.use('/api/consultation', consultationRoutes);
 app.use('/api/payment', paymentRoutes);
 app.use('/api/prescriptions', prescriptionRoutes);
 app.use('/api/patientQueue', patientQueueRoutes);
+app.use('/api/family', familyRoutes);
 
 // Error handler
 app.use((err, req, res, next) => {
