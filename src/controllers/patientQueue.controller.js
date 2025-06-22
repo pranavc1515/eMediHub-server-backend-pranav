@@ -77,8 +77,7 @@ const getPatientQueue = async (req, res) => {
 const joinPatientQueue = async (req, res) => {
   try {
     const { doctorId, patientId } = req.body;
-    console.log('Doctor_MAP', doctorSocketMap);
-    console.log('Patient_MAP', patientSocketMap);
+    console.log('Joining queue - Doctor:', doctorId, 'Patient:', patientId);
 
     if (!doctorId || !patientId) {
       return res.status(400).json({
@@ -103,119 +102,127 @@ const joinPatientQueue = async (req, res) => {
         doctorId,
         status: 'ongoing',
       },
-      include: [
-        {
-          model: PatientQueue,
-          as: 'queue',
-          required: false,
-        },
-      ],
     });
 
     if (ongoingConsultation) {
       // Patient is already in consultation - redirect to rejoin
+      console.log(`Patient ${patientId} is already in ongoing consultation ${ongoingConsultation.id} with doctor ${doctorId}`);
       return res.status(200).json({
         success: true,
-        message: 'Already in consultation',
+        message: 'Already in ongoing consultation',
         action: 'rejoin',
         consultationId: ongoingConsultation.id,
         roomName: ongoingConsultation.roomName,
         position: 0, // Position 0 for ongoing consultation
+        status: 'ongoing',
       });
     }
 
-    // Check if patient is already in queue with status 'in_consultation'
-    const existingInConsultation = await PatientQueue.findOne({
+    // Check if patient is already in queue with ANY status (waiting or in_consultation) for this doctor
+    const existingQueueEntry = await PatientQueue.findOne({
       where: {
         doctorId,
         patientId,
-        status: 'in_consultation',
-      },
-    });
-
-    if (existingInConsultation) {
-      // Patient is in consultation - cannot join queue again
-      return res.status(400).json({
-        success: false,
-        message: 'Patient is currently in consultation and cannot join queue',
-        action: 'in_consultation',
-        consultationId: existingInConsultation.consultationId,
-        roomName: existingInConsultation.roomName,
-        position: 0,
-      });
-    }
-
-    // Check if patient is already in queue with status 'waiting'
-    const existingWaiting = await PatientQueue.findOne({
-      where: {
-        doctorId,
-        patientId,
-        status: 'waiting',
-      },
-    });
-
-    if (existingWaiting) {
-      return res.status(200).json({
-        success: true,
-        message: 'Already in queue',
-        action: 'waiting',
-        position: existingWaiting.position,
-        roomName: existingWaiting.roomName,
-        estimatedWait: `${
-          existingWaiting.estimatedWaitTime ||
-          (existingWaiting.position - 1) * 15
-        } mins`,
-      });
-    }
-
-    const queueCount = await PatientQueue.count({
-      where: {
-        doctorId,
         status: ['waiting', 'in_consultation'],
       },
     });
 
+    if (existingQueueEntry) {
+      console.log(`Patient ${patientId} already has queue entry with status: ${existingQueueEntry.status}`);
+      
+      // Patient already has an active queue entry
+      if (existingQueueEntry.status === 'in_consultation') {
+        return res.status(200).json({
+          success: true,
+          message: 'Patient is currently in consultation',
+          action: 'in_consultation',
+          consultationId: existingQueueEntry.consultationId,
+          roomName: existingQueueEntry.roomName,
+          position: 0,
+          status: 'in_consultation',
+        });
+      } else {
+        // Patient is waiting - return existing position
+        const waitingCount = await PatientQueue.count({
+          where: {
+            doctorId,
+            status: 'waiting',
+          },
+        });
+        
+        return res.status(200).json({
+          success: true,
+          message: 'Already in queue',
+          action: 'wait',
+          position: existingQueueEntry.position,
+          roomName: existingQueueEntry.roomName,
+          estimatedWait: `${Math.max(0, (existingQueueEntry.position - 1) * 10)} mins`,
+          status: 'waiting',
+          queueLength: waitingCount,
+        });
+      }
+    }
+
+    // Additional check: Prevent patient from being in queue with multiple doctors simultaneously
+    const existingQueueWithOtherDoctor = await PatientQueue.findOne({
+      where: {
+        patientId,
+        doctorId: { [Op.ne]: doctorId }, // Different doctor
+        status: ['waiting', 'in_consultation'],
+      },
+    });
+
+    if (existingQueueWithOtherDoctor) {
+      console.log(`Patient ${patientId} is already in queue with doctor ${existingQueueWithOtherDoctor.doctorId}`);
+      return res.status(400).json({
+        success: false,
+        message: 'Patient is already in queue or consultation with another doctor',
+        action: 'conflict',
+      });
+    }
+
+    // Get the next available position for waiting patients
+    const maxWaitingPosition = await PatientQueue.max('position', {
+      where: {
+        doctorId,
+        status: 'waiting',
+      },
+    });
+
+    const nextPosition = (maxWaitingPosition || 0) + 1;
     const roomName = `room-${uuidv4()}`;
 
     // Create new queue entry
     const queueEntry = await PatientQueue.create({
       doctorId,
       patientId,
-      position: queueCount + 1,
+      position: nextPosition,
       roomName,
-      socketId: null,
       status: 'waiting',
     });
 
-    const updatedQueue = await PatientQueue.findAll({
+    console.log(`Patient ${patientId} joined queue at position ${nextPosition} for doctor ${doctorId}`);
+
+    // Get updated queue count
+    const queueLength = await PatientQueue.count({
       where: {
         doctorId,
-        status: ['waiting', 'in_consultation'],
+        status: 'waiting',
       },
-      order: [['position', 'ASC']],
-      attributes: ['id', 'position', 'status', 'patientId', 'roomName'],
-      include: [
-        {
-          model: PatientIN,
-          as: 'patient',
-          attributes: ['name'],
-        },
-      ],
     });
-    
-    // Notify doctor through socket
-    const doctorSocketId = getDoctorSocketId(doctorId);
-    if (doctorSocketId) {
-      io.to(doctorSocketId).emit('QUEUE_CHANGED', updatedQueue);
-    }
+
+    // Broadcast queue updates to all patients and doctor
+    await broadcastQueueUpdates(doctorId);
 
     return res.status(200).json({
       success: true,
-      message: 'Patient joined the queue',
+      message: 'Patient joined the queue successfully',
       action: 'joined',
       position: queueEntry.position,
       roomName,
-      estimatedWait: `${queueEntry.position * 10} mins`,
+      estimatedWait: `${Math.max(0, (queueEntry.position - 1) * 10)} mins`,
+      status: 'waiting',
+      queueLength,
     });
   } catch (error) {
     console.error('Error in joinPatientQueue:', error);
@@ -224,6 +231,53 @@ const joinPatientQueue = async (req, res) => {
       message: 'Failed to join queue',
       error: error.message,
     });
+  }
+};
+
+// Helper function to broadcast queue updates
+const broadcastQueueUpdates = async (doctorId) => {
+  try {
+    const updatedQueue = await PatientQueue.findAll({
+      where: {
+        doctorId,
+        status: ['waiting', 'in_consultation'],
+      },
+      order: [['position', 'ASC']],
+      include: [
+        {
+          model: PatientIN,
+          as: 'patient',
+          attributes: ['name', 'phone', 'email'],
+        },
+      ],
+    });
+
+    // Notify doctor through socket
+    const doctorSocketId = getDoctorSocketId(doctorId);
+    if (doctorSocketId) {
+      io.to(doctorSocketId).emit('QUEUE_CHANGED', updatedQueue);
+      console.log(`Queue update sent to doctor ${doctorId}`);
+    }
+
+    // Notify all patients about their position
+    updatedQueue.forEach((entry) => {
+      const patientSocketId = getPatientSocketId(entry.patientId);
+      if (patientSocketId) {
+        const positionData = {
+          position: entry.position,
+          estimatedWait: entry.status === 'in_consultation' 
+            ? '0 mins' 
+            : `${Math.max(0, (entry.position - 1) * 10)} mins`,
+          status: entry.status,
+          queueLength: updatedQueue.filter(e => e.status === 'waiting').length,
+        };
+        
+        io.to(patientSocketId).emit('POSITION_UPDATE', positionData);
+        console.log(`Position update sent to patient ${entry.patientId}:`, positionData);
+      }
+    });
+  } catch (error) {
+    console.error('Error broadcasting queue updates:', error);
   }
 };
 

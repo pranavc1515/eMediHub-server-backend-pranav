@@ -27,79 +27,146 @@ const setupVideoQueueSocket = (io) => {
     console.log('DoctorMap', doctorSocketMap);
     console.log('PatientMap', patientSocketMap);
 
-    // Doctor invites next patient
-    socket.on('INVITE_NEXT_PATIENT', async (data) => {
+    // Function to broadcast queue updates to all patients in queue
+    const broadcastQueueUpdates = async (doctorId) => {
       try {
-        const { doctorId } = data;
-
-        // Find next waiting patient
-        const nextPatient = await PatientQueue.findOne({
+        const queueEntries = await PatientQueue.findAll({
           where: {
             doctorId,
-            status: 'waiting',
+            status: ['waiting', 'in_consultation'],
           },
           order: [['position', 'ASC']],
+          include: [
+            {
+              model: PatientIN,
+              as: 'patient',
+              attributes: ['name', 'phone', 'email'],
+            },
+          ],
         });
 
-        if (!nextPatient) {
-          return socket.emit('NO_WAITING_PATIENTS');
+        console.log(`Broadcasting queue updates for doctor ${doctorId}, ${queueEntries.length} entries`);
+
+        // Notify each patient about their updated position
+        queueEntries.forEach((entry, index) => {
+          const patientSocketId = getPatientSocketId(entry.patientId);
+          if (patientSocketId) {
+            const positionData = {
+              position: entry.position,
+              estimatedWait: entry.status === 'in_consultation' 
+                ? '0 mins' 
+                : `${Math.max(0, (entry.position - 1) * 10)} mins`,
+              status: entry.status,
+              queueLength: queueEntries.filter(e => e.status === 'waiting').length,
+              totalInQueue: queueEntries.length,
+            };
+            
+            io.to(patientSocketId).emit('POSITION_UPDATE', positionData);
+            console.log(`Position update sent to patient ${entry.patientId}:`, positionData);
+          }
+        });
+
+        // Notify doctor about queue changes
+        const doctorSocketId = getDoctorSocketId(doctorId);
+        if (doctorSocketId) {
+          io.to(doctorSocketId).emit('QUEUE_CHANGED', queueEntries);
+          console.log(`Queue change notification sent to doctor ${doctorId}`);
+        }
+      } catch (error) {
+        console.error('Error broadcasting queue updates:', error);
+      }
+    };
+
+    // Helper function to recalculate and update queue positions
+    const recalculateQueuePositions = async (doctorId) => {
+      try {
+        const waitingPatients = await PatientQueue.findAll({
+          where: {
+            doctorId,
+            status: 'waiting',
+          },
+          order: [['createdAt', 'ASC']], // Order by creation time to maintain FIFO
+        });
+
+        // Update positions sequentially
+        for (let i = 0; i < waitingPatients.length; i++) {
+          await waitingPatients[i].update({ position: i + 1 });
         }
 
-        // Create consultation
-        const consultation = await Consultation.create({
-          patientId: nextPatient.patientId,
-          doctorId,
-          scheduledDate: new Date(),
-          startTime: new Date(),
-          endTime: new Date(Date.now() + 15 * 60000), // 15 minutes from now
-          status: 'ongoing',
-          consultationType: 'video',
-          roomName: nextPatient.roomName,
-          patientSocketId: nextPatient.socketId,
-          doctorSocketId: socket.id,
-          actualStartTime: new Date(),
-        });
-
-        // Update queue entry
-        await nextPatient.update({
-          status: 'in_consultation',
-          consultationId: consultation.id,
-        });
-
-        // Notify patient to join call
-        io.to(nextPatient.socketId).emit('INVITE_PATIENT', {
-          roomName: nextPatient.roomName,
-          consultationId: consultation.id,
-        });
-
-        // Update queue positions for remaining patients
-        await PatientQueue.increment('position', {
-          where: {
-            doctorId,
-            status: 'waiting',
-            position: { [Op.gt]: nextPatient.position },
-          },
-        });
-
-        // Notify other patients of updated positions
-        const remainingQueue = await PatientQueue.findAll({
-          where: {
-            doctorId,
-            status: 'waiting',
-          },
-        });
-
-        remainingQueue.forEach((patient) => {
-          io.to(patient.socketId).emit('QUEUE_POSITION_UPDATE', {
-            position: patient.position,
-            estimatedWait: `${(patient.position - 1) * 10} mins`,
-          });
-        });
+        console.log(`Queue positions recalculated for doctor ${doctorId}`);
       } catch (error) {
-        console.error('Error in INVITE_NEXT_PATIENT:', error);
-        socket.emit('ERROR', { message: 'Failed to invite next patient' });
+        console.error('Error recalculating queue positions:', error);
       }
-    });
+    };
+
+    // Doctor starts consultation with specific patient - NOW HANDLED BY REST API
+    // socket.on('START_CONSULTATION', async (data) => {
+    //   try {
+    //     const { doctorId, patientId } = data;
+    //     console.log(`Doctor ${doctorId} starting consultation with patient ${patientId}`);
+
+    //     // Find the patient in queue
+    //     const queueEntry = await PatientQueue.findOne({
+    //       where: {
+    //         doctorId,
+    //         patientId,
+    //         status: 'waiting',
+    //       },
+    //     });
+
+    //     if (!queueEntry) {
+    //       console.log(`Patient ${patientId} not found in waiting queue for doctor ${doctorId}`);
+    //       return socket.emit('ERROR', { message: 'Patient not found in queue' });
+    //     }
+
+    //     // Create consultation
+    //     const consultation = await Consultation.create({
+    //       patientId: queueEntry.patientId,
+    //       doctorId,
+    //       scheduledDate: new Date(),
+    //       startTime: new Date(),
+    //       endTime: new Date(Date.now() + 30 * 60000), // 30 minutes from now
+    //       status: 'ongoing',
+    //       consultationType: 'video',
+    //       roomName: queueEntry.roomName,
+    //       actualStartTime: new Date(),
+    //     });
+
+    //     console.log(`Consultation ${consultation.id} created for patient ${patientId} and doctor ${doctorId}`);
+
+    //     // Update queue entry to position 0 (in consultation)
+    //     await queueEntry.update({
+    //       status: 'in_consultation',
+    //       position: 0,
+    //       consultationId: consultation.id,
+    //     });
+
+    //     // Recalculate positions for remaining waiting patients
+    //     await recalculateQueuePositions(doctorId);
+
+    //     // Notify patient that consultation has started
+    //     const patientSocketId = getPatientSocketId(patientId);
+    //     if (patientSocketId) {
+    //       const payload = {
+    //         roomName: queueEntry.roomName,
+    //         consultationId: consultation.id,
+    //         doctorId,
+    //         patientId,
+    //       };
+    //       io.to(patientSocketId).emit('CONSULTATION_STARTED', payload);
+    //       console.log(`Consultation start notification sent to patient ${patientId}`);
+    //     }
+
+    //     // Broadcast queue updates to all patients and doctor
+    //     await broadcastQueueUpdates(doctorId);
+
+    //     console.log(`Consultation started successfully - ID: ${consultation.id}`);
+
+    //   } catch (error) {
+    //     console.error('Error in START_CONSULTATION:', error);
+    //     socket.emit('ERROR', { message: 'Failed to start consultation' });
+    //   }
+    // });
 
     // Handle consultation end
     socket.on('END_CONSULTATION', async (data) => {
@@ -115,14 +182,27 @@ const setupVideoQueueSocket = (io) => {
           actualEndTime: new Date(),
         });
 
-        // Update queue entry
-        await PatientQueue.update(
-          { status: 'done' },
-          { where: { consultationId } }
-        );
+        // Find and update queue entry
+        const queueEntry = await PatientQueue.findOne({
+          where: { consultationId }
+        });
 
-        // Notify patient that consultation has ended
-        io.to(consultation.patientSocketId).emit('CONSULTATION_ENDED');
+        if (queueEntry) {
+          await queueEntry.update({ status: 'completed' });
+
+          // Notify patient that consultation has ended
+          const patientSocketId = getPatientSocketId(queueEntry.patientId);
+          if (patientSocketId) {
+            io.to(patientSocketId).emit('CONSULTATION_ENDED', {
+              consultationId,
+              message: 'Consultation has ended successfully'
+            });
+          }
+
+          // Broadcast queue updates to remaining patients
+          await broadcastQueueUpdates(queueEntry.doctorId);
+        }
+
       } catch (error) {
         console.error('Error in END_CONSULTATION:', error);
         socket.emit('ERROR', { message: 'Failed to end consultation' });
@@ -133,6 +213,7 @@ const setupVideoQueueSocket = (io) => {
     socket.on('LEAVE_QUEUE', async (data) => {
       try {
         const { patientId, doctorId } = data;
+        console.log(`Patient ${patientId} leaving queue for doctor ${doctorId}`);
 
         const queueEntry = await PatientQueue.findOne({
           where: {
@@ -142,40 +223,24 @@ const setupVideoQueueSocket = (io) => {
           },
         });
 
-        if (!queueEntry) return;
+        if (!queueEntry) {
+          console.log(`Queue entry not found for patient ${patientId} and doctor ${doctorId}`);
+          return;
+        }
+
+        console.log(`Patient ${patientId} was at position ${queueEntry.position}`);
 
         // Update status to left
         await queueEntry.update({ status: 'left' });
 
-        // Update positions for remaining patients
-        await PatientQueue.increment('position', {
-          where: {
-            doctorId,
-            status: 'waiting',
-            position: { [Op.gt]: queueEntry.position },
-          },
-        });
+        // Recalculate positions for remaining waiting patients
+        await recalculateQueuePositions(doctorId);
 
-        // Notify doctor of queue change
-        const updatedQueue = await PatientQueue.findAll({
-          where: {
-            doctorId,
-            status: ['waiting', 'in_consultation'],
-          },
-          include: [
-            {
-              model: 'Patient',
-              as: 'patient',
-              attributes: ['firstName', 'lastName'],
-            },
-          ],
-          order: [['position', 'ASC']],
-        });
+        // Broadcast queue updates to all patients and doctor
+        await broadcastQueueUpdates(doctorId);
 
-        const doctorSocketId = getDoctorSocketId(doctorId);
-        if (doctorSocketId) {
-          io.to(doctorSocketId).emit('QUEUE_CHANGED', updatedQueue);
-        }
+        console.log(`Patient ${patientId} successfully left queue`);
+
       } catch (error) {
         console.error('Error in LEAVE_QUEUE:', error);
         socket.emit('ERROR', { message: 'Failed to leave queue' });

@@ -27,6 +27,8 @@ const startConsultation = async (req, res) => {
       return res.status(400).json({ error: 'patientId is required' });
     }
 
+    console.log(`Doctor ${doctorId} attempting to start consultation with patient ${patientId}`);
+
     // Check if there's already an ongoing consultation
     const existingConsultation = await Consultation.findOne({
       where: {
@@ -37,7 +39,9 @@ const startConsultation = async (req, res) => {
     });
 
     if (existingConsultation) {
+      console.log(`Existing consultation found: ${existingConsultation.id}`);
       return res.status(200).json({
+        success: true,
         message: 'Consultation already exists',
         action: 'rejoin',
         consultationId: existingConsultation.id,
@@ -45,63 +49,143 @@ const startConsultation = async (req, res) => {
       });
     }
 
-    // Find active patient in waiting queue
-    const activePatient = await PatientQueue.findOne({
-      where: { patientId, doctorId, status: 'waiting' },
+    // Find the patient in waiting queue
+    const queueEntry = await PatientQueue.findOne({
+      where: { 
+        patientId, 
+        doctorId, 
+        status: 'waiting' 
+      },
     });
 
-    if (!activePatient) {
+    if (!queueEntry) {
+      console.log(`No waiting queue entry found for patient ${patientId} with doctor ${doctorId}`);
       return res.status(404).json({
+        success: false,
         error: 'No active patient found in waiting status for this doctor',
       });
     }
 
+    console.log(`Found queue entry for patient ${patientId} at position ${queueEntry.position}`);
+
     // Create new consultation
     const consultation = await Consultation.create({
-      patientId: activePatient.patientId,
+      patientId: queueEntry.patientId,
       doctorId,
       scheduledDate: new Date(),
       startTime: new Date(),
-      endTime: new Date(Date.now() + 15 * 60000), // 15 minutes from now
+      endTime: new Date(Date.now() + 30 * 60000), // 30 minutes from now
       status: 'ongoing',
       consultationType: 'video',
-      roomName: activePatient.roomName,
+      roomName: queueEntry.roomName,
+      actualStartTime: new Date(),
     });
 
-    // Update patient queue status with position 0 for ongoing consultation
-    await activePatient.update({
+    console.log(`Created consultation ${consultation.id} for patient ${patientId} and doctor ${doctorId}`);
+
+    // Update queue entry to position 0 (in consultation) and link to consultation
+    await queueEntry.update({
       status: 'in_consultation',
       consultationId: consultation.id,
       position: 0, // Set position to 0 for ongoing consultation
     });
 
-    const payload = {
-      consultationId: consultation.id,
-      roomName: activePatient.roomName,
-      doctorId,
-      patientId: activePatient.patientId,
-    };
+    // Import socket utilities
+    const {
+      getDoctorSocketId,
+      getPatientSocketId,
+    } = require('../socket/socketHandlers');
+    const { io } = require('../socket/socket');
 
-    // Emit socket events if socket IDs available
-    const patientSocketId = await getPatientSocketId(patientId);
+    // Recalculate positions for remaining waiting patients
+    const waitingPatients = await PatientQueue.findAll({
+      where: {
+        doctorId,
+        status: 'waiting',
+      },
+      order: [['createdAt', 'ASC']], // Order by creation time to maintain FIFO
+    });
+
+    // Update positions sequentially
+    for (let i = 0; i < waitingPatients.length; i++) {
+      await waitingPatients[i].update({ position: i + 1 });
+    }
+
+    console.log(`Queue positions recalculated for doctor ${doctorId}`);
+
+    // Get updated queue for broadcasting
+    const updatedQueue = await PatientQueue.findAll({
+      where: {
+        doctorId,
+        status: ['waiting', 'in_consultation'],
+      },
+      order: [['position', 'ASC']],
+      include: [
+        {
+          model: PatientIN,
+          as: 'patient',
+          attributes: ['name', 'phone', 'email'],
+        },
+      ],
+    });
+
+    // Notify patient that consultation has started
+    const patientSocketId = getPatientSocketId(patientId);
     if (patientSocketId) {
+      const payload = {
+        roomName: queueEntry.roomName,
+        consultationId: consultation.id,
+        doctorId,
+        patientId,
+      };
       io.to(patientSocketId).emit('CONSULTATION_STARTED', payload);
+      console.log(`Consultation start notification sent to patient ${patientId}`);
     }
 
-    const doctorSocketId = await getDoctorSocketId(doctorId);
+    // Notify doctor about queue changes
+    const doctorSocketId = getDoctorSocketId(doctorId);
     if (doctorSocketId) {
-      io.to(doctorSocketId).emit('CONSULTATION_STARTED', payload);
+      io.to(doctorSocketId).emit('QUEUE_CHANGED', updatedQueue);
+      console.log(`Queue change notification sent to doctor ${doctorId}`);
     }
+
+    // Notify all patients in queue about position updates
+    updatedQueue.forEach((entry) => {
+      const patientSocketId = getPatientSocketId(entry.patientId);
+      if (patientSocketId) {
+        const positionData = {
+          position: entry.position,
+          estimatedWait: entry.status === 'in_consultation' 
+            ? '0 mins' 
+            : `${Math.max(0, (entry.position - 1) * 10)} mins`,
+          status: entry.status,
+          queueLength: updatedQueue.filter(e => e.status === 'waiting').length,
+          totalInQueue: updatedQueue.length,
+        };
+        
+        io.to(patientSocketId).emit('POSITION_UPDATE', positionData);
+        console.log(`Position update sent to patient ${entry.patientId}:`, positionData);
+      }
+    });
+
+    console.log(`Consultation started successfully - ID: ${consultation.id}`);
 
     // Send success response
     return res.status(200).json({
+      success: true,
       message: 'Consultation started successfully',
       consultationId: consultation.id,
-      roomName: activePatient.roomName,
+      roomName: queueEntry.roomName,
+      doctorId,
+      patientId: queueEntry.patientId,
     });
   } catch (error) {
     console.error('Error in startConsultation:', error);
-    return res.status(500).json({ error: 'Internal server error' });
+    return res.status(500).json({ 
+      success: false,
+      error: 'Internal server error',
+      message: error.message 
+    });
   }
 };
 
@@ -423,7 +507,9 @@ const checkConsultationStatus = async (req, res) => {
       });
     }
 
-    // Check for ongoing consultation
+    console.log(`Checking consultation status for doctor ${doctorId} and patient ${patientId}`);
+
+    // Check for ongoing consultation first
     const ongoingConsultation = await Consultation.findOne({
       where: {
         doctorId,
@@ -433,6 +519,7 @@ const checkConsultationStatus = async (req, res) => {
     });
 
     if (ongoingConsultation) {
+      console.log(`Found ongoing consultation ${ongoingConsultation.id}`);
       return res.status(200).json({
         success: true,
         status: 'ongoing',
@@ -443,28 +530,32 @@ const checkConsultationStatus = async (req, res) => {
       });
     }
 
-    // Check for completed consultation
+    // Check for completed consultation (recent)
     const completedConsultation = await Consultation.findOne({
       where: {
         doctorId,
         patientId,
         status: 'completed',
+        updatedAt: {
+          [Op.gte]: new Date(Date.now() - 5 * 60 * 1000), // Within last 5 minutes
+        },
       },
       order: [['updatedAt', 'DESC']],
     });
 
     if (completedConsultation) {
+      console.log(`Found recently completed consultation ${completedConsultation.id}`);
       return res.status(200).json({
         success: true,
         status: 'completed',
         action: 'ended',
         consultationId: completedConsultation.id,
-        message: 'Consultation has ended',
+        message: 'Consultation has ended recently',
       });
     }
 
-    // Check queue status
-    const queueEntry = await PatientQueue.findOne({
+    // Check existing queue status
+    const existingQueueEntry = await PatientQueue.findOne({
       where: {
         doctorId,
         patientId,
@@ -472,31 +563,140 @@ const checkConsultationStatus = async (req, res) => {
       },
     });
 
-    if (queueEntry) {
+    if (existingQueueEntry) {
+      console.log(`Found existing queue entry with status: ${existingQueueEntry.status}`);
       return res.status(200).json({
         success: true,
-        status: queueEntry.status,
-        action: queueEntry.status === 'waiting' ? 'wait' : 'rejoin',
-        position: queueEntry.position,
-        roomName: queueEntry.roomName,
-        consultationId: queueEntry.consultationId,
+        status: existingQueueEntry.status,
+        action: existingQueueEntry.status === 'waiting' ? 'wait' : 'rejoin',
+        position: existingQueueEntry.position,
+        roomName: existingQueueEntry.roomName,
+        consultationId: existingQueueEntry.consultationId,
         estimatedWait:
-          queueEntry.status === 'waiting'
-            ? `${(queueEntry.position - 1) * 10} mins`
+          existingQueueEntry.status === 'waiting'
+            ? `${Math.max(0, (existingQueueEntry.position - 1) * 10)} mins`
             : null,
         message:
-          queueEntry.status === 'waiting'
-            ? 'Patient is in queue'
+          existingQueueEntry.status === 'waiting'
+            ? 'Patient is already in queue'
             : 'Patient is in consultation',
       });
     }
 
-    return res.status(200).json({
-      success: true,
-      status: 'none',
-      action: 'none',
-      message: 'No active consultation or queue entry found',
-    });
+    // For patients calling from UserHomePage - automatically join queue
+    // For doctors calling from DoctorHomePage - don't auto-join, just return status
+    const userAgent = req.headers['user-agent'] || '';
+    const isPatientRequest = req.body.autoJoin !== false; // Default to true for patient requests
+
+    if (isPatientRequest) {
+      // Auto-join logic for patients (existing code)
+      const { v4: uuidv4 } = require('uuid');
+      
+      // Check if patient is already in queue with another doctor
+      const existingQueueWithOtherDoctor = await PatientQueue.findOne({
+        where: {
+          patientId,
+          doctorId: { [Op.ne]: doctorId },
+          status: ['waiting', 'in_consultation'],
+        },
+      });
+
+      if (existingQueueWithOtherDoctor) {
+        return res.status(400).json({
+          success: false,
+          message: 'Patient is already in queue or consultation with another doctor',
+          action: 'conflict',
+        });
+      }
+      
+      // Get the next available position for waiting patients
+      const maxWaitingPosition = await PatientQueue.max('position', {
+        where: {
+          doctorId,
+          status: 'waiting',
+        },
+      });
+
+      const nextPosition = (maxWaitingPosition || 0) + 1;
+      const roomName = `room-${uuidv4()}`;
+
+      // Create new queue entry
+      const queueEntry = await PatientQueue.create({
+        doctorId,
+        patientId,
+        position: nextPosition,
+        roomName,
+        status: 'waiting',
+      });
+
+      console.log(`Patient ${patientId} automatically joined queue at position ${nextPosition}`);
+
+      // Broadcast queue updates
+      const { 
+        getDoctorSocketId, 
+        getPatientSocketId 
+      } = require('../socket/socketHandlers');
+      const { io } = require('../socket/socket');
+
+      // Get updated queue for broadcasting
+      const updatedQueue = await PatientQueue.findAll({
+        where: {
+          doctorId,
+          status: ['waiting', 'in_consultation'],
+        },
+        order: [['position', 'ASC']],
+        include: [
+          {
+            model: require('../models/patientIN.model').PatientIN,
+            as: 'patient',
+            attributes: ['name', 'phone', 'email'],
+          },
+        ],
+      });
+
+      // Notify doctor about queue change
+      const doctorSocketId = getDoctorSocketId(doctorId);
+      if (doctorSocketId) {
+        io.to(doctorSocketId).emit('QUEUE_CHANGED', updatedQueue);
+      }
+
+      // Notify all patients in queue about position updates
+      updatedQueue.forEach((entry) => {
+        const patientSocketId = getPatientSocketId(entry.patientId);
+        if (patientSocketId) {
+          const positionData = {
+            position: entry.position,
+            estimatedWait: entry.status === 'in_consultation' 
+              ? '0 mins' 
+              : `${Math.max(0, (entry.position - 1) * 10)} mins`,
+            status: entry.status,
+            queueLength: updatedQueue.filter(e => e.status === 'waiting').length,
+          };
+          
+          io.to(patientSocketId).emit('POSITION_UPDATE', positionData);
+        }
+      });
+
+      return res.status(200).json({
+        success: true,
+        status: 'waiting',
+        action: 'wait',
+        position: queueEntry.position,
+        roomName: queueEntry.roomName,
+        estimatedWait: `${Math.max(0, (queueEntry.position - 1) * 10)} mins`,
+        queueLength: updatedQueue.filter(e => e.status === 'waiting').length,
+        message: 'Patient automatically joined queue',
+      });
+    } else {
+      // Doctor request - just return status without auto-joining
+      console.log(`No active consultation or queue entry found for doctor ${doctorId} and patient ${patientId}`);
+      return res.status(200).json({
+        success: true,
+        status: 'none',
+        action: 'none',
+        message: 'No active consultation or queue entry found',
+      });
+    }
   } catch (error) {
     console.error('Error in checkConsultationStatus:', error);
     return res.status(500).json({
