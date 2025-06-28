@@ -34,6 +34,7 @@ const paymentRoutes = require('./routes/payment.routes');
 const prescriptionRoutes = require('./routes/prescription.routes');
 const patientQueueRoutes = require('./routes/patientQueue.routes');
 const familyRoutes = require('./routes/family.routes');
+const reportsRoutes = require('./routes/reports.routes');
 
 // Configure CORS to allow all origins
 app.use(
@@ -114,6 +115,7 @@ app.use('/api/payment', paymentRoutes);
 app.use('/api/prescriptions', prescriptionRoutes);
 app.use('/api/patientQueue', patientQueueRoutes);
 app.use('/api/family', familyRoutes);
+app.use('/api/reports', reportsRoutes);
 
 // Error handler
 app.use((err, req, res, next) => {
