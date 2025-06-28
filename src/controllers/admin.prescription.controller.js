@@ -1,8 +1,57 @@
 const Prescription = require('../models/prescription.model');
 const Consultation = require('../models/consultation.model');
-const { PatientIN } = require('../models/patientIN.model');
 const { DoctorPersonal } = require('../models/doctor.model');
 const { Op } = require('sequelize');
+const patientController = require('./patient.controller');
+
+const ENABLE_PATIENT_MICROSERVICE = process.env.ENABLE_PATIENT_MICROSERVICE;
+
+// Helper function to get patient data for display
+const getPatientDataForDisplay = async (patientId, authToken = null) => {
+  if (!ENABLE_PATIENT_MICROSERVICE) {
+    const { PatientIN } = require('../models/patientIN.model');
+    const patient = await PatientIN.findByPk(patientId);
+    return patient ? {
+      id: patient.id,
+      name: patient.name,
+      email: patient.email,
+    } : {
+      id: patientId,
+      name: 'Unknown Patient',
+      email: '',
+    };
+  }
+
+  // For microservice mode, get data from external API
+  try {
+    const result = await patientController.getUserById(patientId, authToken);
+    
+    if (result.status && result.data) {
+      const numericId = typeof result.data.id === 'string' 
+        ? parseInt(result.data.id.replace('US', '')) 
+        : parseInt(result.data.id);
+      
+      return {
+        id: numericId,
+        name: result.data.name,
+        email: result.data.email,
+      };
+    }
+    
+    return {
+      id: patientId,
+      name: 'Unknown Patient',
+      email: '',
+    };
+  } catch (error) {
+    console.warn(`Failed to fetch patient data for ${patientId}:`, error.message);
+    return {
+      id: patientId,
+      name: 'Unknown Patient',
+      email: '',
+    };
+  }
+};
 
 // Get all prescriptions with filtering
 exports.getAllPrescriptions = async (req, res) => {
@@ -43,14 +92,9 @@ exports.getAllPrescriptions = async (req, res) => {
             }
         }
 
-        const { count, rows: prescriptions } = await Prescription.findAndCountAll({
+        const { count, rows: prescriptionsData } = await Prescription.findAndCountAll({
             where,
             include: [
-                {
-                    model: PatientIN,
-                    as: 'patient',
-                    attributes: ['id', 'name', 'email']
-                },
                 {
                     model: DoctorPersonal,
                     as: 'doctor',
@@ -67,6 +111,17 @@ exports.getAllPrescriptions = async (req, res) => {
             offset: parseInt(offset),
             order: [['createdAt', 'DESC']]
         });
+
+        // Fetch patient data for each prescription
+        const prescriptions = await Promise.all(
+            prescriptionsData.map(async (prescription) => {
+                const patientData = await getPatientDataForDisplay(prescription.patientId);
+                return {
+                    ...prescription.toJSON(),
+                    patient: patientData,
+                };
+            })
+        );
 
         res.json({
             success: true,
@@ -333,14 +388,9 @@ exports.generatePrescriptionReport = async (req, res) => {
             if (endDate) where.createdAt[Op.lte] = new Date(endDate);
         }
 
-        const prescriptions = await Prescription.findAll({
+        const prescriptionsData = await Prescription.findAll({
             where,
             include: [
-                {
-                    model: PatientIN,
-                    as: 'patient',
-                    attributes: ['id', 'name']
-                },
                 {
                     model: DoctorPersonal,
                     as: 'doctor',
@@ -354,6 +404,17 @@ exports.generatePrescriptionReport = async (req, res) => {
             ],
             order: [['createdAt', 'DESC']]
         });
+
+        // Fetch patient data for each prescription
+        const prescriptions = await Promise.all(
+            prescriptionsData.map(async (prescription) => {
+                const patientData = await getPatientDataForDisplay(prescription.patientId);
+                return {
+                    ...prescription.toJSON(),
+                    patient: patientData,
+                };
+            })
+        );
 
         // Process data for report
         const reportData = prescriptions.map(prescription => {

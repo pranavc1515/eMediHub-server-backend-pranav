@@ -11,7 +11,9 @@
     "sync-db": "node src/syncDatabase.js",
     "start-with-sync": "node start.js",
     "test-socket": "node test-socket.js",
-    "fix-db": "node fix-database.js"
+    "fix-db": "node fix-database.js",
+    "setup-microservice": "node setup-microservice-db.js",
+    "fix-foreign-keys": "node fix-foreign-key-constraints.js"
   },
   "keywords": [
     "nodejs",

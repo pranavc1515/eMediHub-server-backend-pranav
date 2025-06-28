@@ -137,7 +137,7 @@ router.post('/checkUserExists', async (req, res) => {
     if (!phone) {
       return res.status(400).json({
         success: false,
-        message: 'Phone number is required',
+        message: 'fhone number is required',
       });
     }
 

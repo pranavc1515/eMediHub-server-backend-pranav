@@ -11,9 +11,11 @@ dotenv.config();
 
 const { app, server } = require('./socket/socket');
 const db = require('./config/database');
+const ENABLE_PATIENT_MICROSERVICE = process.env.ENABLE_PATIENT_MICROSERVICE;
 
 // Load models
 require('./models/patient.model');
+// Always load PatientIN model (still needed for conditional use)
 require('./models/patientIN.model');
 require('./models/doctor.model');
 require('./models/consultation.model');
@@ -24,8 +26,13 @@ require('./models/user.model');
 
 // Load routes
 const authRoutes = require('./routes/auth.routes');
-const patientRoutes = require('./routes/patient.routes');
 const patientINRoutes = require('./routes/patientIN.routes');
+
+// Conditionally load patient routes based on microservice flag
+let patientRoutes;
+if (ENABLE_PATIENT_MICROSERVICE) {
+  patientRoutes = require('./routes/patient.routes');
+}
 const doctorRoutes = require('./routes/doctor.routes');
 const adminRoutes = require('./routes/admin.routes');
 const videoRoutes = require('./routes/video.routes');
@@ -98,13 +105,12 @@ app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerDocs));
 
 // Routes
 app.use('/api/auth', authRoutes);
-const useInternalPatientDb = process.env.USE_INTERNAL_PATIENT_DB === 'true';
-if (useInternalPatientDb) {
-  console.log('Using internal patient database implementation');
-  app.use('/api/patients', patientINRoutes);
-} else {
+if (ENABLE_PATIENT_MICROSERVICE) {
   console.log('Using 3rd party API patient implementation');
   app.use('/api/patients', patientRoutes);
+} else {
+  console.log('Using internal patient database implementation');
+  app.use('/api/patients', patientINRoutes);
 }
 app.use('/api/doctors', doctorRoutes);
 app.use('/api/admin', adminRoutes);
@@ -126,16 +132,36 @@ app.use((err, req, res, next) => {
 });
 
 const PORT = process.env.PORT || 3000;
+
+// Import foreign key constraint migration functions
+const { dropForeignKeyConstraints, addForeignKeyConstraints } = require('../fix-foreign-key-constraints');
+
 db.authenticate()
   .then(() => {
     console.log('Database connected successfully.');
     return db.sync();
   })
-  .then(() => {
+  .then(async () => {
     console.log('Models synchronized.');
+    
+    // Handle foreign key constraints based on microservice mode
+    try {
+      if (ENABLE_PATIENT_MICROSERVICE === 'true') {
+        console.log('🔧 Microservice mode detected - removing patient foreign key constraints...');
+        await dropForeignKeyConstraints();
+      } else {
+        console.log('🔧 Internal mode detected - ensuring patient foreign key constraints exist...');
+        await addForeignKeyConstraints();
+      }
+    } catch (error) {
+      console.warn('⚠️  Warning: Foreign key constraint migration failed:', error.message);
+      console.log('🚀 Continuing server startup...');
+    }
+    
     server.listen(PORT, () => {
       console.log(`Server listening on http://localhost:${PORT}`);
       console.log(`Swagger UI: http://localhost:${PORT}/api-docs`);
+      console.log(`Patient Mode: ${ENABLE_PATIENT_MICROSERVICE === 'true' ? 'Microservice (External API)' : 'Internal Database'}`);
     });
   })
   .catch((err) => {

@@ -1,8 +1,9 @@
 const { DataTypes } = require('sequelize');
 const sequelize = require('../config/database');
 const Consultation = require('./consultation.model');
-const { PatientIN } = require('./patientIN.model');
 const { DoctorPersonal } = require('./doctor.model');
+
+const ENABLE_PATIENT_MICROSERVICE = process.env.ENABLE_PATIENT_MICROSERVICE;
 
 const Prescription = sequelize.define(
   'Prescription',
@@ -23,10 +24,13 @@ const Prescription = sequelize.define(
     patientId: {
       type: DataTypes.INTEGER,
       allowNull: false,
-      references: {
-        model: PatientIN,
-        key: 'id',
-      },
+      // Only add foreign key constraint if NOT using microservice
+      ...(ENABLE_PATIENT_MICROSERVICE ? {} : {
+        references: {
+          model: 'patient_personal', // Use table name instead of model
+          key: 'id',
+        },
+      }),
     },
     doctorId: {
       type: DataTypes.INTEGER,
@@ -83,7 +87,13 @@ Prescription.belongsTo(Consultation, {
   foreignKey: 'consultationId',
   as: 'consultation',
 });
-Prescription.belongsTo(PatientIN, { foreignKey: 'patientId', as: 'patient' });
+
+// Only establish patient relationship if NOT using microservice
+if (!ENABLE_PATIENT_MICROSERVICE) {
+  const { PatientIN } = require('./patientIN.model');
+  Prescription.belongsTo(PatientIN, { foreignKey: 'patientId', as: 'patient' });
+}
+
 Prescription.belongsTo(DoctorPersonal, {
   foreignKey: 'doctorId',
   as: 'doctor',

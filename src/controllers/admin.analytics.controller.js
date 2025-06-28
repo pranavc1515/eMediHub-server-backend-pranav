@@ -1,12 +1,30 @@
-const { PatientIN } = require('../models/patientIN.model');
 const { DoctorPersonal, DoctorProfessional } = require('../models/doctor.model');
 const Consultation = require('../models/consultation.model');
 const Prescription = require('../models/prescription.model');
 const { Op, Sequelize } = require('sequelize');
+const patientController = require('./patient.controller');
+
+const ENABLE_PATIENT_MICROSERVICE = process.env.ENABLE_PATIENT_MICROSERVICE;
 
 // Get patient demographics
 exports.getPatientDemographics = async (req, res) => {
     try {
+        if (ENABLE_PATIENT_MICROSERVICE) {
+            return res.json({
+                success: true,
+                message: 'Patient demographics not available in microservice mode',
+                data: {
+                    totalPatients: 'N/A',
+                    genderDistribution: [],
+                    ageGroups: {},
+                    registrationTrend: [],
+                    note: 'Patient demographics analytics are not available when using external patient microservice'
+                }
+            });
+        }
+
+        const { PatientIN } = require('../models/patientIN.model');
+        
         // Get total patients count
         const totalPatients = await PatientIN.count();
 

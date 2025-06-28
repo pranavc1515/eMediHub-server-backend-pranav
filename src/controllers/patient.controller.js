@@ -1,8 +1,27 @@
-const axios = require("axios");
+const axios = require('axios');
 
-// Base URL for the 3rd party API
+// Base URL for the patient microservice API
 // const API_BASE_URL = "http://52.66.115.96:3000/user";
-const API_BASE_URL = "https://devbackend.emedihub.com/user";
+// const API_BASE_URL = 'https://devbackend.emedihub.com/user';
+const API_BASE_URL = 'http://43.204.91.138:3000/user';
+
+// Get user by ID (e.g., 243 or US243)
+const getUserById = async (userId, authToken) => {
+  try {
+    const response = await axios.get(`${API_BASE_URL}/get-user/${userId}`, {
+      headers: {
+        Authorization: authToken,
+        Accept: 'application/json',
+      },
+    });
+
+    return response.data;
+  } catch (error) {
+    throw new Error(
+      error.response?.data?.message || 'Error fetching user by ID'
+    );
+  }
+};
 
 // Register a new patient
 const registerNewPatient = async (phone) => {
@@ -12,7 +31,7 @@ const registerNewPatient = async (phone) => {
       { phone },
       {
         headers: {
-          "Content-Type": "application/json",
+          'Content-Type': 'application/json',
         },
       }
     );
@@ -22,12 +41,14 @@ const registerNewPatient = async (phone) => {
     // If patient already exists, automatically trigger login flow
     if (
       error.response?.data?.message ===
-      "User already registered with this phone number."
+      'User already registered with this phone number.'
     ) {
       const loginResponse = await doLogin(phone);
       return { ...loginResponse, patientExists: true };
     }
-    throw new Error(error.response?.data?.message || "Error registering patient");
+    throw new Error(
+      error.response?.data?.message || 'Error registering patient'
+    );
   }
 };
 
@@ -39,7 +60,7 @@ const validateOTP = async (phone, otp) => {
       { phone, otp },
       {
         headers: {
-          "Content-Type": "application/json",
+          'Content-Type': 'application/json',
         },
       }
     );
@@ -47,11 +68,11 @@ const validateOTP = async (phone, otp) => {
     // If OTP validation is successful, get profile details
     console.log(response.data.status && response.data.token);
 
-    console.log("response.data", response.data);
+    console.log('response.data', response.data);
     const profileDetails = await getProfileDetails(
       `Bearer ${response.data.token}`
     );
-    console.log("details", profileDetails);
+    console.log('details', profileDetails);
     return {
       ...response.data,
       patient: profileDetails.data,
@@ -59,7 +80,7 @@ const validateOTP = async (phone, otp) => {
 
     // return response.data;
   } catch (error) {
-    throw new Error(error.response?.data?.message || "Error validating OTP");
+    throw new Error(error.response?.data?.message || 'Error validating OTP');
   }
 };
 
@@ -71,15 +92,15 @@ const checkUserExists = async (phone) => {
       { phone },
       {
         headers: {
-          "Content-Type": "application/json",
+          'Content-Type': 'application/json',
         },
       }
     );
-    console.log("checkUserExist", response);
+    console.log('checkUserExist', response);
     return response.data;
   } catch (error) {
     throw new Error(
-      error.response?.data?.message || "Error checking patient existence"
+      error.response?.data?.message || 'Error checking patient existence'
     );
   }
 };
@@ -92,7 +113,7 @@ const recordPersonalDetails = async (patientData, authToken) => {
       patientData,
       {
         headers: {
-          "Content-Type": "application/json",
+          'Content-Type': 'application/json',
           Authorization: authToken,
         },
       }
@@ -101,7 +122,7 @@ const recordPersonalDetails = async (patientData, authToken) => {
     return response.data;
   } catch (error) {
     throw new Error(
-      error.response?.data?.message || "Error updating personal details"
+      error.response?.data?.message || 'Error updating personal details'
     );
   }
 };
@@ -118,7 +139,7 @@ const getProfileDetails = async (authToken) => {
     return response.data;
   } catch (error) {
     throw new Error(
-      error.response?.data?.message || "Error fetching profile details"
+      error.response?.data?.message || 'Error fetching profile details'
     );
   }
 };
@@ -135,7 +156,7 @@ const getMedicalDetails = async (authToken) => {
     return response.data;
   } catch (error) {
     throw new Error(
-      error.response?.data?.message || "Error fetching medical details"
+      error.response?.data?.message || 'Error fetching medical details'
     );
   }
 };
@@ -148,7 +169,7 @@ const verifyEmail = async (email, authToken) => {
       { email },
       {
         headers: {
-          "Content-Type": "application/json",
+          'Content-Type': 'application/json',
           Authorization: authToken,
         },
       }
@@ -156,7 +177,7 @@ const verifyEmail = async (email, authToken) => {
 
     return response.data;
   } catch (error) {
-    throw new Error(error.response?.data?.message || "Error verifying email");
+    throw new Error(error.response?.data?.message || 'Error verifying email');
   }
 };
 
@@ -168,7 +189,7 @@ const updateMedicalDetails = async (medicalData, authToken) => {
       medicalData,
       {
         headers: {
-          "Content-Type": "application/json",
+          'Content-Type': 'application/json',
           Authorization: authToken,
         },
       }
@@ -177,7 +198,7 @@ const updateMedicalDetails = async (medicalData, authToken) => {
     return response.data;
   } catch (error) {
     throw new Error(
-      error.response?.data?.message || "Error updating medical details"
+      error.response?.data?.message || 'Error updating medical details'
     );
   }
 };
@@ -190,14 +211,14 @@ const doLogin = async (username) => {
       { username },
       {
         headers: {
-          "Content-Type": "application/json",
+          'Content-Type': 'application/json',
         },
       }
     );
-    console.log("doLogin", response.data);
+    console.log('doLogin', response.data);
     return response.data;
   } catch (error) {
-    throw new Error(error.response?.data?.message || "Error during login");
+    throw new Error(error.response?.data?.message || 'Error during login');
   }
 };
 
@@ -212,26 +233,35 @@ const getVideoConsultationPricing = async (authToken) => {
 
     return response.data;
   } catch (error) {
-    throw new Error(error.response?.data?.message || "Error fetching video consultation pricing");
+    throw new Error(
+      error.response?.data?.message ||
+        'Error fetching video consultation pricing'
+    );
   }
 };
 
 // Get doctor price
 const getDoctorPrice = async (doctorId, authToken) => {
   try {
-    const response = await axios.get(`${API_BASE_URL}/doctor-price/${doctorId}`, {
-      headers: {
-        Authorization: authToken,
-      },
-    });
+    const response = await axios.get(
+      `${API_BASE_URL}/doctor-price/${doctorId}`,
+      {
+        headers: {
+          Authorization: authToken,
+        },
+      }
+    );
 
     return response.data;
   } catch (error) {
-    throw new Error(error.response?.data?.message || "Error fetching doctor price");
+    throw new Error(
+      error.response?.data?.message || 'Error fetching doctor price'
+    );
   }
 };
 
 module.exports = {
+  getUserById,
   registerNewPatient,
   validateOTP,
   checkUserExists,

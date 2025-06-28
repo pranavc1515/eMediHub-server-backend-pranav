@@ -1,8 +1,9 @@
 const { DataTypes } = require('sequelize');
 const sequelize = require('../config/database');
-const { PatientIN } = require('./patientIN.model');
 const { DoctorPersonal } = require('./doctor.model');
 const Consultation = require('./consultation.model');
+
+const ENABLE_PATIENT_MICROSERVICE = process.env.ENABLE_PATIENT_MICROSERVICE;
 
 const PatientQueue = sequelize.define(
   'PatientQueue',
@@ -15,10 +16,13 @@ const PatientQueue = sequelize.define(
     patientId: {
       type: DataTypes.INTEGER,
       allowNull: false,
-      references: {
-        model: PatientIN,
-        key: 'id',
-      },
+      // Only add foreign key constraint if NOT using microservice
+      ...(ENABLE_PATIENT_MICROSERVICE ? {} : {
+        references: {
+          model: 'patient_personal', // Use table name instead of model
+          key: 'id',
+        },
+      }),
     },
     doctorId: {
       type: DataTypes.INTEGER,
@@ -80,11 +84,15 @@ const PatientQueue = sequelize.define(
 );
 
 // Establish relationships
-PatientQueue.belongsTo(PatientIN, {
-  foreignKey: 'patientId',
-  as: 'patient',
-  onDelete: 'CASCADE',
-});
+// Only establish patient relationship if NOT using microservice
+if (!ENABLE_PATIENT_MICROSERVICE) {
+  const { PatientIN } = require('./patientIN.model');
+  PatientQueue.belongsTo(PatientIN, {
+    foreignKey: 'patientId',
+    as: 'patient',
+    onDelete: 'CASCADE',
+  });
+}
 
 PatientQueue.belongsTo(DoctorPersonal, {
   foreignKey: 'doctorId',
@@ -99,17 +107,17 @@ PatientQueue.belongsTo(Consultation, {
 });
 
 // Create hook to copy patient data
-PatientQueue.beforeCreate(async (queue, options) => {
-  try {
-    // Get patient data
-    const patient = await PatientIN.findByPk(queue.patientId);
-    if (patient) {
-      queue.patientFirstName = patient.firstName;
-      queue.patientLastName = patient.lastName;
-    }
-  } catch (error) {
-    console.error('Error in PatientQueue beforeCreate hook:', error);
-  }
-});
+// PatientQueue.beforeCreate(async (queue, options) => {
+//   try {
+//     // Get patient data
+//     const patient = await PatientIN.findByPk(queue.patientId);
+//     if (patient) {
+//       queue.patientFirstName = patient.firstName;
+//       queue.patientLastName = patient.lastName;
+//     }
+//   } catch (error) {
+//     console.error('Error in PatientQueue beforeCreate hook:', error);
+//   }
+// });
 
 module.exports = PatientQueue;

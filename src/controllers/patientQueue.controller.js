@@ -1,5 +1,4 @@
 const PatientQueue = require('../models/patientQueue.model');
-const { PatientIN, PatientINDetails } = require('../models/patientIN.model');
 const Consultation = require('../models/consultation.model');
 const { Op } = require('sequelize');
 const {
@@ -10,6 +9,116 @@ const {
 } = require('../socket/socketHandlers');
 const { io } = require('../socket/socket');
 const { v4: uuidv4 } = require('uuid');
+const patientController = require('./patient.controller');
+
+const ENABLE_PATIENT_MICROSERVICE = process.env.ENABLE_PATIENT_MICROSERVICE;
+
+// Helper function to validate patient using external API
+const validatePatientExternally = async (patientId, authToken = null) => {
+  if (!ENABLE_PATIENT_MICROSERVICE) {
+    // For internal mode, check local database
+    const { PatientIN } = require('../models/patientIN.model');
+    const patient = await PatientIN.findByPk(patientId);
+    if (!patient) {
+      throw new Error('Patient not found');
+    }
+    return {
+      id: patient.id,
+      name: patient.name,
+      phone: patient.phone,
+      email: patient.email,
+      status: 'Active', // Assume active for internal patients
+    };
+  }
+
+  // For microservice mode, validate using external API
+  try {
+    const result = await patientController.getUserById(patientId, authToken);
+    
+    if (!result.status || result.status_code !== 200) {
+      throw new Error('Patient not found in external service');
+    }
+
+    const patientData = result.data;
+    
+    // Check if patient status is Active
+    if (patientData.status !== 'Active') {
+      throw new Error(`Patient status is ${patientData.status}, not Active`);
+    }
+
+    // Convert US243 to 243 for internal use
+    const numericId = typeof patientData.id === 'string' 
+      ? parseInt(patientData.id.replace('US', '')) 
+      : parseInt(patientData.id);
+
+    return {
+      id: numericId,
+      originalId: patientData.id, // Keep original format for reference
+      name: patientData.name,
+      phone: patientData.phone,
+      email: patientData.email,
+      status: patientData.status,
+      gender: patientData.gender,
+      dob: patientData.dob,
+      isPhoneVerify: patientData.isPhoneVerify,
+      isEmailVerify: patientData.isEmailVerify,
+    };
+  } catch (error) {
+    console.error(`Patient validation failed for ID ${patientId}:`, error.message);
+    throw new Error(`Patient ${patientId} not found or not active in external service`);
+  }
+};
+
+// Helper function to get patient data for display
+const getPatientDataForDisplay = async (patientId, authToken = null) => {
+  if (!ENABLE_PATIENT_MICROSERVICE) {
+    const { PatientIN, PatientINDetails } = require('../models/patientIN.model');
+    const patient = await PatientIN.findByPk(patientId, {
+      include: [
+        {
+          model: PatientINDetails,
+          as: 'details',
+          attributes: ['height', 'weight', 'diet', 'blood_group'],
+        },
+      ],
+    });
+    return patient ? {
+      name: patient.name,
+      phone: patient.phone,
+      email: patient.email,
+      details: patient.details || {},
+    } : {
+      name: 'Unknown Patient',
+      phone: '',
+      email: '',
+      details: {},
+    };
+  }
+
+  // For microservice mode, get data from external API
+  try {
+    const patientData = await validatePatientExternally(patientId, authToken);
+    return {
+      name: patientData.name,
+      phone: patientData.phone,
+      email: patientData.email,
+      details: {
+        height: null,
+        weight: null,
+        diet: null,
+        blood_group: null,
+      },
+    };
+  } catch (error) {
+    console.warn(`Failed to fetch patient data for ${patientId}:`, error.message);
+    return {
+      name: 'Unknown Patient',
+      phone: '',
+      email: '',
+      details: {},
+    };
+  }
+};
 
 // Get patient queue for a specific doctor
 const getPatientQueue = async (req, res) => {
@@ -27,29 +136,27 @@ const getPatientQueue = async (req, res) => {
       },
     });
 
-    const queue = await PatientQueue.findAll({
+    const queueData = await PatientQueue.findAll({
       where: {
         doctorId,
         status: ['waiting', 'in_consultation'],
       },
       order: [['position', 'ASC']],
-      include: [
-        {
-          model: PatientIN,
-          as: 'patient',
-          attributes: ['name', 'phone', 'email'],
-          include: [
-            {
-              model: PatientINDetails,
-              as: 'details',
-              attributes: ['height', 'weight', 'diet', 'blood_group'],
-            },
-          ],
-        },
-      ],
+      // No includes - we'll fetch patient data separately
       offset,
       limit,
     });
+
+    // Fetch patient data for each queue entry
+    const queue = await Promise.all(
+      queueData.map(async (entry) => {
+        const patientData = await getPatientDataForDisplay(entry.patientId);
+        return {
+          ...entry.toJSON(),
+          patient: patientData,
+        };
+      })
+    );
 
     const totalPages = Math.ceil(totalCount / limit);
     const validatedPage = page > totalPages ? 1 : page;
@@ -86,12 +193,16 @@ const joinPatientQueue = async (req, res) => {
       });
     }
 
-    // Get patient data
-    const patient = await PatientIN.findByPk(patientId);
-    if (!patient) {
+    // Validate patient using external API (if microservice) or local DB
+    try {
+      await validatePatientExternally(patientId);
+      console.log(`Patient ${patientId} validated successfully`);
+    } catch (error) {
+      console.error(`Patient validation failed: ${error.message}`);
       return res.status(404).json({
         success: false,
-        message: 'Patient not found',
+        message: 'Patient not found or not active',
+        error: error.message,
       });
     }
 
@@ -237,20 +348,25 @@ const joinPatientQueue = async (req, res) => {
 // Helper function to broadcast queue updates
 const broadcastQueueUpdates = async (doctorId) => {
   try {
-    const updatedQueue = await PatientQueue.findAll({
+    const updatedQueueData = await PatientQueue.findAll({
       where: {
         doctorId,
         status: ['waiting', 'in_consultation'],
       },
       order: [['position', 'ASC']],
-      include: [
-        {
-          model: PatientIN,
-          as: 'patient',
-          attributes: ['name', 'phone', 'email'],
-        },
-      ],
+      // No includes - we'll fetch patient data separately
     });
+
+    // Fetch patient data for each queue entry
+    const updatedQueue = await Promise.all(
+      updatedQueueData.map(async (entry) => {
+        const patientData = await getPatientDataForDisplay(entry.patientId);
+        return {
+          ...entry.toJSON(),
+          patient: patientData,
+        };
+      })
+    );
 
     // Notify doctor through socket
     const doctorSocketId = getDoctorSocketId(doctorId);
@@ -314,27 +430,25 @@ const leavePatientQueue = async (req, res) => {
     });
 
     // Get updated queue to notify doctor
-    const updatedQueue = await PatientQueue.findAll({
+    const updatedQueueData = await PatientQueue.findAll({
       where: {
         doctorId,
         status: ['waiting', 'in_consultation'],
       },
-      include: [
-        {
-          model: PatientIN, // Use model reference, not string
-          as: 'patient', // Alias must match your association
-          attributes: ['name', 'phone', 'email'], // Adjust attributes as needed
-          include: [
-            {
-              model: PatientINDetails,
-              as: 'details',
-              attributes: ['height', 'weight', 'diet', 'blood_group'], // Optional
-            },
-          ],
-        },
-      ],
       order: [['position', 'ASC']],
+      // No includes - we'll fetch patient data separately
     });
+
+    // Fetch patient data for each queue entry
+    const updatedQueue = await Promise.all(
+      updatedQueueData.map(async (entry) => {
+        const patientData = await getPatientDataForDisplay(entry.patientId);
+        return {
+          ...entry.toJSON(),
+          patient: patientData,
+        };
+      })
+    );
 
     // Notify doctor through socket
     const doctorSocketId = getDoctorSocketId(doctorId);

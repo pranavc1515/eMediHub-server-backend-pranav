@@ -104,7 +104,7 @@ router.post('/do-login', async (req, res) => {
       });
     }
 
-    const result = await userController.doLogin(username);
+    const result = await patientController.registerNewPatient(username);
     res.json(result);
   } catch (error) {
     res.status(400).json({
@@ -184,7 +184,7 @@ router.post('/validate-otp', async (req, res) => {
  *       400:
  *         description: Error response from 3rd party API
  */
-router.post('/checkUserExist', async (req, res) => {
+router.post('/checkUserExists', async (req, res) => {
   try {
     const { phone } = req.body;
 
