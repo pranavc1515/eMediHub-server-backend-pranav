@@ -72,10 +72,13 @@ const validateOTP = async (phone, otp) => {
     const profileDetails = await getProfileDetails(
       `Bearer ${response.data.token}`
     );
+    const isProfileComplete = !!profileDetails?.data?.name;
     console.log('details', profileDetails);
     return {
       ...response.data,
-      patient: profileDetails.data,
+      patient: {
+        isProfileComplete,
+      },
     };
 
     // return response.data;
