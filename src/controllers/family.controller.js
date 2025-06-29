@@ -1,7 +1,7 @@
 const axios = require('axios');
 
 // Base URL for the 3rd party Family API - should be set via environment variable
-const FAMILY_API_BASE_URL = process.env.FAMILY_API_BASE_URL || 'http://43.204.91.138:3001';
+const FAMILY_API_BASE_URL = process.env.FAMILY_API_BASE_URL || 'http://43.204.91.138:3000';
 
 // Helper function to create axios instance with proper headers
 const createAxiosInstance = (token) => {

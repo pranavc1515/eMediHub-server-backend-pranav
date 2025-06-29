@@ -2,7 +2,7 @@ const axios = require('axios');
 
 // Test configuration
 const BASE_URL = 'http://localhost:3000';
-const FAMILY_API_BASE_URL = 'http://43.204.91.138:3001';
+const FAMILY_API_BASE_URL = 'http://43.204.91.138:3000';
 
 // Test token (you'll need to replace this with a valid token)
 const TEST_TOKEN = 'your-test-token-here';
@@ -26,7 +26,7 @@ async function testFamilyAPIConnection() {
 async function testViewFamilyTree() {
     try {
         console.log('🌳 Testing view family tree...');
-        const response = await axios.get(`${BASE_URL}/api/family/view-family-tree`, {
+        const response = await axios.get(`${BASE_URL}/family/view-family-tree`, {
             headers: {
                 'Authorization': `Bearer ${TEST_TOKEN}`
             }
