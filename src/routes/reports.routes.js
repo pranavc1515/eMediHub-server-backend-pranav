@@ -35,95 +35,151 @@ const upload = multer({
  *         id:
  *           type: integer
  *           description: Unique identifier for the report
- *           example: 2
+ *           example: 122
  *         user_id:
  *           type: integer
  *           description: ID of the user who owns the report
- *           example: 1
- *         related_user:
+ *           example: 238
+ *         doctor_id:
  *           type: integer
  *           nullable: true
- *           description: ID of related user (family member)
- *           example: 5
+ *           description: ID of the doctor
+ *           example: 0
+ *         uploaded_by:
+ *           type: string
+ *           nullable: true
+ *           description: Who uploaded the report
+ *           example: null
+ *         related_user:
+ *           type: string
+ *           nullable: true
+ *           description: Related user information
+ *           example: null
  *         doctor_name:
  *           type: string
  *           description: Name of the doctor
- *           example: "Dr test2"
+ *           example: "Dr. Smith"
  *         report_date:
  *           type: string
  *           format: date
  *           description: Date of the report
- *           example: "2024-09-27"
+ *           example: "2025-06-29"
  *         report_reason:
  *           type: string
+ *           nullable: true
  *           description: Reason for the report
- *           example: "Routine checkup"
+ *           example: null
  *         report_analysis:
  *           type: string
+ *           nullable: true
  *           description: Analysis or findings from the report
- *           example: "Blood test results"
+ *           example: null
  *         report_pdf:
- *           type: array
- *           description: Array of PDF file URLs
- *           items:
- *             type: string
- *           example: ["http://13.234.252.76:3000/uploads/reports/1727775051374-merged_report_1_1727679211462.pdf"]
+ *           type: string
+ *           description: URL to the PDF file
+ *           example: "http://43.204.91.138:3000/uploads/users/reports/1751222840180-file.pdf"
  *         food_allergies:
  *           type: string
  *           nullable: true
  *           description: Food allergies information
- *           example: "Nuts"
+ *           example: null
  *         drug_allergies:
  *           type: string
  *           nullable: true
  *           description: Drug allergies information
- *           example: "Penicillin"
+ *           example: null
  *         blood_group:
  *           type: string
  *           nullable: true
  *           description: Blood group
- *           example: "O+"
+ *           example: null
  *         implants:
  *           type: string
  *           nullable: true
  *           description: Implants information
- *           example: "None"
+ *           example: null
  *         surgeries:
  *           type: string
  *           nullable: true
  *           description: Surgery history
- *           example: "hello"
+ *           example: null
  *         family_medical_history:
  *           type: string
  *           nullable: true
  *           description: Family medical history
- *           example: "Diabetes"
- *         medical_condition:
- *           type: string
- *           nullable: true
- *           description: Current medical conditions
- *           example: "Hypertension"
- *         allergies:
- *           type: string
- *           nullable: true
- *           description: General allergies
- *           example: "Pollen"
- *         medications:
- *           type: string
- *           nullable: true
- *           description: Current medications
- *           example: "Lisinopril"
+ *           example: null
  *         created_at:
  *           type: string
  *           format: date-time
  *           description: Creation timestamp
- *           example: "2024-10-01T09:30:51.000Z"
+ *           example: "2025-06-29T18:47:20.000Z"
  *         updated_at:
  *           type: string
  *           format: date-time
  *           description: Last update timestamp
- *           example: "2024-10-01T09:30:51.000Z"
- *     ReportsResponse:
+ *           example: "2025-06-29T18:47:20.000Z"
+ *         patient_name:
+ *           type: string
+ *           description: Name of the patient
+ *           example: "John Doe"
+ *     UploadReportRequest:
+ *       type: object
+ *       required:
+ *         - doctor_name
+ *         - report_date
+ *         - report_pdf
+ *       properties:
+ *         report_pdf:
+ *           type: array
+ *           description: One or more PDF files (max size and count subject to validation)
+ *           items:
+ *             type: string
+ *             format: binary
+ *         report_date:
+ *           type: string
+ *           format: date
+ *           description: Date of the report in YYYY-MM-DD format
+ *           example: "2025-06-29"
+ *         doctor_name:
+ *           type: string
+ *           description: Name of the doctor
+ *           example: "Dr. Smith"
+ *         target_user_id:
+ *           type: integer
+ *           description: Required for doctors uploading reports for patients
+ *           example: 123
+ *         doctor_id:
+ *           type: integer
+ *           description: Optional doctor ID if uploaded by a patient
+ *           example: 456
+ *     UploadReportResponse:
+ *       type: object
+ *       properties:
+ *         status:
+ *           type: boolean
+ *           description: Indicates if the upload was successful
+ *           example: true
+ *         status_code:
+ *           type: integer
+ *           description: HTTP status code
+ *           example: 201
+ *         message:
+ *           type: string
+ *           description: Success message
+ *           example: "Report uploaded successfully"
+ *         file_size:
+ *           type: string
+ *           description: Size of uploaded file
+ *           example: "0.50 MB"
+ *         total_usage:
+ *           type: string
+ *           description: Total storage usage
+ *           example: "2.50 MB"
+ *         show_warning:
+ *           type: boolean
+ *           description: Whether to show storage warning
+ *           example: false
+ *     ViewReportsResponse:
  *       type: object
  *       properties:
  *         status:
@@ -143,221 +199,125 @@ const upload = multer({
  *           description: Array of report objects
  *           items:
  *             $ref: '#/components/schemas/Report'
- *     UploadReportRequest:
- *       type: object
- *       required:
- *         - doctor_name
- *         - report_date
- *         - report_reason
- *         - report_analysis
- *         - report_pdf
- *       properties:
- *         related_user:
- *           type: string
- *           description: ID of related user (family member) - optional
- *           example: ""
- *         doctor_name:
- *           type: string
- *           description: Name of the doctor
- *           minLength: 2
- *           maxLength: 100
- *           example: "Drname"
- *         report_date:
- *           type: string
- *           format: date
- *           description: Date of the report in YYYY-MM-DD format
- *           example: "2024-10-9"
- *         report_reason:
- *           type: string
- *           description: Reason for the report
- *           minLength: 2
- *           maxLength: 500
- *           example: "testing1"
- *         report_analysis:
- *           type: string
- *           description: Analysis or findings from the report
- *           minLength: 2
- *           maxLength: 1000
- *           example: "Blood test result1"
- *         food_allergies:
- *           type: string
- *           description: Food allergies information
- *           maxLength: 200
- *           example: "Nuts"
- *         drug_allergies:
- *           type: string
- *           description: Drug allergies information
- *           maxLength: 200
- *           example: "Penicillin"
- *         blood_group:
- *           type: string
- *           description: Blood group
- *           enum: [A+, A-, B+, B-, AB+, AB-, O+, O-]
- *           example: "O+"
- *         implants:
- *           type: string
- *           description: Implants information
- *           maxLength: 200
- *           example: "None"
- *         surgeries:
- *           type: string
- *           description: Surgery history
- *           maxLength: 500
- *           example: "hello"
- *         family_medical_history:
- *           type: string
- *           description: Family medical history
- *           maxLength: 500
- *           example: "Diabetes"
- *         medical_condition:
- *           type: string
- *           description: Current medical conditions
- *           maxLength: 500
- *           example: "Hypertension"
- *         allergies:
- *           type: string
- *           description: General allergies
- *           maxLength: 200
- *           example: "Pollen"
- *         medications:
- *           type: string
- *           description: Current medications
- *           maxLength: 500
- *           example: "Lisinopril"
- *         report_pdf:
- *           type: string
- *           format: binary
- *           description: PDF file(s) to upload - supports multiple files
- *     UploadReportResponse:
- *       type: object
- *       properties:
- *         status:
- *           type: boolean
- *           description: Indicates if the upload was successful
- *           example: true
- *         status_code:
- *           type: integer
- *           description: HTTP status code
- *           example: 201
- *         message:
- *           type: string
- *           description: Success message
- *           example: "Report uploaded successfully"
- *     ViewReportsRequest:
- *       type: object
- *       description: All filter parameters are optional
- *       properties:
- *         patientName:
- *           type: string
- *           description: Filter by patient name
- *           example: ""
- *         doctor_name:
- *           type: string
- *           description: Filter by doctor name
- *           example: ""
- *         report_reason:
- *           type: string
- *           description: Filter by report reason
- *           example: ""
- *         start_date:
- *           type: string
- *           format: date
- *           description: Filter by start date (report_date)
- *           example: ""
- *         end_date:
- *           type: string
- *           format: date
- *           description: Filter by end date (report_date)
- *           example: ""
- *         related_user:
- *           type: integer
- *           description: Filter by related user ID
- *           example: 0
- *         searchText:
- *           type: string
- *           description: General search across multiple fields
- *           example: ""
  *     EditReportRequest:
  *       type: object
  *       description: All fields are optional - include only the fields you want to update
  *       properties:
- *         related_user:
+ *         report_pdf:
+ *           type: array
+ *           description: One or more updated PDF files for the report
+ *           items:
+ *             type: string
+ *             format: binary
+ *         report_title:
  *           type: string
- *           description: Updated related user ID
- *           example: ""
- *         doctor_name:
+ *           description: Title of the report
+ *           example: "Updated Blood Test Report"
+ *         report_type:
  *           type: string
- *           description: Updated doctor name
- *           example: "satyammmm"
+ *           description: Type of the report
+ *           example: "Lab"
  *         report_date:
  *           type: string
  *           format: date
  *           description: Updated report date
- *           example: "2024-09-27"
- *         report_reason:
+ *           example: "2025-06-29"
+ *         doctor_name:
  *           type: string
- *           description: Updated report reason
- *           example: "Routine checkup "
- *         report_analysis:
- *           type: string
- *           description: Updated report analysis
- *           example: "Blood test  j"
- *         food_allergies:
- *           type: string
- *           description: Updated food allergies
- *           example: "Nuts"
- *         drug_allergies:
- *           type: string
- *           description: Updated drug allergies
- *           example: "Penicillin"
- *         blood_group:
- *           type: string
- *           description: Updated blood group
- *           example: "O+"
- *         implants:
- *           type: string
- *           description: Updated implants information
- *           example: "None"
- *         surgeries:
- *           type: string
- *           description: Updated surgery history
- *           example: "hello"
- *         family_medical_history:
- *           type: string
- *           description: Updated family medical history
- *           example: "Diabetes"
- *         medical_condition:
- *           type: string
- *           description: Updated medical conditions
- *           example: "Hypertension"
- *         allergies:
- *           type: string
- *           description: Updated allergies
- *           example: "Pollen"
- *         medications:
- *           type: string
- *           description: Updated medications
- *           example: "Lisinopril"
- *         report_pdf:
- *           type: string
- *           format: binary
- *           description: New PDF file to replace existing one
- *         deletePages:
- *           type: array
- *           description: Array of page numbers to delete from existing PDF
- *           items:
- *             type: integer
- *           example: []
- *         addAfterPage:
+ *           description: Updated doctor name
+ *           example: "Dr. Smith"
+ *         target_user_id:
  *           type: integer
- *           description: Page number after which to add new content
- *           example: ""
- *     DownloadResponse:
+ *           description: Required if edited by a doctor for a patient
+ *           example: 123
+ *         doctor_id:
+ *           type: integer
+ *           description: Optional doctor ID if edited by a patient
+ *           example: 456
+ *     EditReportResponse:
+ *       type: object
+ *       properties:
+ *         status:
+ *           type: boolean
+ *           description: Indicates if the update was successful
+ *           example: true
+ *         status_code:
+ *           type: integer
+ *           description: HTTP status code
+ *           example: 200
+ *         message:
+ *           type: string
+ *           description: Success message
+ *           example: "Report updated successfully"
+ *     DownloadSingleResponse:
  *       type: object
  *       properties:
  *         status:
  *           type: boolean
  *           description: Indicates if the download was successful
+ *           example: true
+ *         status_code:
+ *           type: integer
+ *           description: HTTP status code
+ *           example: 200
+ *         message:
+ *           type: string
+ *           description: Success message
+ *           example: "Report downloaded successfully"
+ *         data:
+ *           type: object
+ *           properties:
+ *             fileUrl:
+ *               type: string
+ *               description: URL to download the PDF file
+ *               example: "http://43.204.91.138:3000/uploads/users/reports/summary_1751222840180-file.pdf"
+ *             fileName:
+ *               type: string
+ *               description: Name of the file
+ *               example: "summary_1751222840180-file.pdf"
+ *             patientName:
+ *               type: string
+ *               description: Name of the patient
+ *               example: "John Doe"
+ *             doctorName:
+ *               type: string
+ *               description: Name of the doctor
+ *               example: "Dr. Smith"
+ *             reportDate:
+ *               type: string
+ *               description: Formatted report date
+ *               example: "June 29, 2025"
+ *             reportReason:
+ *               type: string
+ *               description: Reason for the report
+ *               example: "Annual Checkup"
+ *             reportNotes:
+ *               type: string
+ *               description: Report notes or analysis
+ *               example: "All vitals are normal."
+ *     DownloadMergedRequest:
+ *       type: object
+ *       properties:
+ *         related_user:
+ *           type: string
+ *           description: Related user identifier
+ *           example: "family_member_123"
+ *         start_date:
+ *           type: string
+ *           format: date
+ *           description: Start date for filtering
+ *           example: "2025-01-01"
+ *         end_date:
+ *           type: string
+ *           format: date
+ *           description: End date for filtering
+ *           example: "2025-12-31"
+ *     DownloadMergedResponse:
+ *       type: object
+ *       properties:
+ *         status:
+ *           type: boolean
+ *           description: Indicates if the merge was successful
  *           example: true
  *         message:
  *           type: string
@@ -366,19 +326,22 @@ const upload = multer({
  *         fileUrl:
  *           type: string
  *           description: URL to download the merged PDF file
- *           example: "http://13.234.252.76:3000/uploads/reports/merged-report-1-0.pdf"
- *     GenericResponse:
+ *           example: "https://your-domain.com/uploads/users/reports/merged-report-123.pdf"
+ *     DeleteReportResponse:
  *       type: object
  *       properties:
  *         status:
  *           type: boolean
+ *           description: Indicates if the deletion was successful
  *           example: true
  *         status_code:
  *           type: integer
+ *           description: HTTP status code
  *           example: 200
  *         message:
  *           type: string
- *           example: "Operation completed successfully"
+ *           description: Success message
+ *           example: "Report deleted successfully"
  *     ErrorResponse:
  *       type: object
  *       properties:
@@ -391,14 +354,22 @@ const upload = multer({
  *         message:
  *           type: string
  *           example: "Error message description"
+ *         show_upgrade_popup:
+ *           type: boolean
+ *           description: Whether to show upgrade popup for storage limits
+ *           example: true
  */
 
 /**
  * @swagger
  * /api/reports/upload:
  *   post:
- *     summary: Upload a medical report with PDF files
- *     description: Upload a new medical report with associated PDF files and medical information. Supports multiple PDF file uploads.
+ *     summary: Upload one or more medical reports
+ *     description: |
+ *       Allows authenticated users to upload medical report PDFs.
+ *       - Doctors must provide target_user_id (the patient receiving the report)
+ *       - Patients can upload for themselves, and optionally assign a doctor
+ *       - File size is validated against the user's subscription plan
  *     tags: [Reports]
  *     security:
  *       - bearerAuth: []
@@ -409,31 +380,18 @@ const upload = multer({
  *           schema:
  *             $ref: '#/components/schemas/UploadReportRequest'
  *           examples:
- *             basic_upload:
- *               summary: Basic report upload
+ *             patient_upload:
+ *               summary: Patient uploading for themselves
  *               value:
- *                 related_user: ""
- *                 doctor_name: "Drname"
- *                 report_date: "2024-10-9"
- *                 report_reason: "testing1"
- *                 report_analysis: "Blood test result1"
- *             detailed_upload:
- *               summary: Detailed report with medical history
+ *                 report_date: "2025-06-29"
+ *                 doctor_name: "Dr. Smith"
+ *                 doctor_id: 456
+ *             doctor_upload:
+ *               summary: Doctor uploading for patient
  *               value:
- *                 related_user: "5"
- *                 doctor_name: "Dr test2"
- *                 report_date: "2024-09-27"
- *                 report_reason: "Routine checkup"
- *                 report_analysis: "Blood test results"
- *                 food_allergies: "Nuts"
- *                 drug_allergies: "Penicillin"
- *                 blood_group: "O+"
- *                 implants: "None"
- *                 surgeries: "hello"
- *                 family_medical_history: "Diabetes"
- *                 medical_condition: "Hypertension"
- *                 allergies: "Pollen"
- *                 medications: "Lisinopril"
+ *                 report_date: "2025-06-29"
+ *                 doctor_name: "Dr. Smith"
+ *                 target_user_id: 123
  *     responses:
  *       201:
  *         description: Report uploaded successfully
@@ -445,50 +403,22 @@ const upload = multer({
  *               status: true
  *               status_code: 201
  *               message: "Report uploaded successfully"
+ *               file_size: "0.50 MB"
+ *               total_usage: "2.50 MB"
+ *               show_warning: false
  *       400:
- *         description: Validation error - Missing required fields or invalid file format
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/ErrorResponse'
- *             examples:
- *               missing_fields:
- *                 summary: Missing required fields
- *                 value:
- *                   status: false
- *                   status_code: 400
- *                   message: "Required fields: doctor_name, report_date, report_reason, report_analysis"
- *               invalid_file:
- *                 summary: Invalid file format
- *                 value:
- *                   status: false
- *                   status_code: 400
- *                   message: "Only PDF files are allowed"
- *               file_too_large:
- *                 summary: File size exceeded
- *                 value:
- *                   status: false
- *                   status_code: 400
- *                   message: "File size cannot exceed 10MB"
- *       401:
- *         description: Authentication required - Invalid or missing JWT token
+ *         description: Validation error or storage limit exceeded
  *         content:
  *           application/json:
  *             schema:
  *               $ref: '#/components/schemas/ErrorResponse'
  *             example:
  *               status: false
- *               status_code: 401
- *               message: "Authentication token required"
+ *               status_code: 400
+ *               message: "Storage limit exceeded"
+ *               show_upgrade_popup: true
  *       500:
- *         description: Internal server error during file upload
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/ErrorResponse'
- *             example:
- *               status: false
- *               message: "Internal server error while uploading report"
+ *         description: Server error
  */
 router.post('/upload', auth, upload.array('report_pdf'), reportsController.uploadReport);
 
@@ -496,188 +426,57 @@ router.post('/upload', auth, upload.array('report_pdf'), reportsController.uploa
  * @swagger
  * /api/reports/view:
  *   get:
- *     summary: View and filter medical reports
- *     description: Retrieve medical reports with optional filtering capabilities. Can filter by patient name, doctor, date range, and more.
+ *     summary: View user and family medical reports
+ *     description: Returns all medical reports for the authenticated user and their family members.
  *     tags: [Reports]
  *     security:
  *       - bearerAuth: []
- *     requestBody:
- *       content:
- *         application/json:
- *           schema:
- *             $ref: '#/components/schemas/ViewReportsRequest'
- *           examples:
- *             no_filters:
- *               summary: Get all reports
- *               value:
- *                 patientName: ""
- *                 doctor_name: ""
- *                 report_reason: ""
- *                 start_date: ""
- *                 end_date: ""
- *                 related_user: 0
- *                 searchText: ""
- *             with_filters:
- *               summary: Filter by doctor and date range
- *               value:
- *                 patientName: ""
- *                 doctor_name: "Dr test2"
- *                 report_reason: ""
- *                 start_date: "2024-09-01"
- *                 end_date: "2024-09-30"
- *                 related_user: 0
- *                 searchText: ""
  *     responses:
  *       200:
  *         description: Reports fetched successfully
  *         content:
  *           application/json:
  *             schema:
- *               $ref: '#/components/schemas/ReportsResponse'
+ *               $ref: '#/components/schemas/ViewReportsResponse'
  *             example:
  *               status: true
  *               status_code: 200
  *               message: "Reports fetched successfully"
  *               data:
- *                 - id: 2
- *                   user_id: 1
- *                   related_user: 5
- *                   doctor_name: "Dr test2"
- *                   report_date: "2024-09-27"
- *                   report_reason: "Routine checkup"
- *                   report_analysis: "Blood test results"
- *                   report_pdf: ["http://13.234.252.76:3000/uploads/reports/1727775051374-merged_report_1_1727679211462.pdf"]
- *                   food_allergies: "Nuts"
- *                   drug_allergies: "Penicillin"
- *                   blood_group: "O+"
- *                   implants: "None"
- *                   surgeries: "hello"
- *                   family_medical_history: "Diabetes"
- *                   created_at: "2024-10-01T09:30:51.000Z"
- *                   updated_at: "2024-10-01T09:30:51.000Z"
- *       401:
- *         description: Authentication required - Invalid or missing JWT token
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/ErrorResponse'
- *             example:
- *               status: false
- *               status_code: 401
- *               message: "Authentication token required"
+ *                 - id: 122
+ *                   user_id: 238
+ *                   doctor_id: 0
+ *                   uploaded_by: null
+ *                   related_user: null
+ *                   doctor_name: "Dr. Smith"
+ *                   report_date: "2025-06-29"
+ *                   report_reason: null
+ *                   report_analysis: null
+ *                   report_pdf: "http://43.204.91.138:3000/uploads/users/reports/1751222840180-file.pdf"
+ *                   food_allergies: null
+ *                   drug_allergies: null
+ *                   blood_group: null
+ *                   implants: null
+ *                   surgeries: null
+ *                   family_medical_history: null
+ *                   created_at: "2025-06-29T18:47:20.000Z"
+ *                   updated_at: "2025-06-29T18:47:20.000Z"
+ *                   patient_name: "John Doe"
  *       500:
- *         description: Internal server error while fetching reports
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/ErrorResponse'
- *             example:
- *               status: false
- *               message: "Internal server error while fetching reports"
+ *         description: Internal server error
  */
 router.get('/view', auth, reportsController.viewReports);
 
 /**
  * @swagger
- * /api/reports/download/{report_id}:
- *   get:
- *     summary: Download a specific report by ID
- *     description: Download a single medical report PDF file by providing the report ID.
- *     tags: [Reports]
- *     security:
- *       - bearerAuth: []
- *     parameters:
- *       - in: path
- *         name: report_id
- *         required: true
- *         schema:
- *           type: integer
- *           minimum: 1
- *         description: Unique ID of the report to download
- *         example: 100
- *     responses:
- *       200:
- *         description: Report file downloaded successfully
- *         content:
- *           application/pdf:
- *             schema:
- *               type: string
- *               format: binary
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 status:
- *                   type: boolean
- *                   example: true
- *                 status_code:
- *                   type: integer
- *                   example: 200
- *                 message:
- *                   type: string
- *                   example: "Report downloaded successfully"
- *                 data:
- *                   type: object
- *                   properties:
- *                     fileUrl:
- *                       type: string
- *                       example: "http://13.234.252.76:3000/uploads/reports/report_100.pdf"
- *                     fileName:
- *                       type: string
- *                       example: "medical_report_100.pdf"
- *                     patientName:
- *                       type: string
- *                       example: "John Doe"
- *                     doctorName:
- *                       type: string
- *                       example: "Dr test2"
- *                     reportDate:
- *                       type: string
- *                       example: "2024-09-27"
- *                     reportReason:
- *                       type: string
- *                       example: "Routine checkup"
- *                     reportNotes:
- *                       type: string
- *                       example: "Blood test results"
- *       401:
- *         description: Authentication required - Invalid or missing JWT token
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/ErrorResponse'
- *             example:
- *               status: false
- *               status_code: 401
- *               message: "Authentication token required"
- *       404:
- *         description: Report not found or PDF file not accessible
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/ErrorResponse'
- *             example:
- *               status: false
- *               status_code: 404
- *               message: "Report with ID 100 not found"
- *       500:
- *         description: Internal server error during download
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/ErrorResponse'
- *             example:
- *               status: false
- *               message: "Internal server error while downloading report"
- */
-router.get('/download/:report_id', auth, reportsController.downloadSingleReport);
-
-/**
- * @swagger
  * /api/reports/edit/{report_id}:
  *   put:
- *     summary: Edit an existing medical report
- *     description: Update an existing medical report with new information and optionally replace or modify PDF files. All fields are optional - include only what you want to update.
+ *     summary: Edit a medical report
+ *     description: |
+ *       Allows authenticated users to edit an existing medical report and optionally update its PDF files.
+ *       - Doctors must provide target_user_id
+ *       - Patients can upload for themselves and optionally assign a doctor
+ *       - If new files are uploaded, they replace existing report files
  *     tags: [Reports]
  *     security:
  *       - bearerAuth: []
@@ -688,8 +487,8 @@ router.get('/download/:report_id', auth, reportsController.downloadSingleReport)
  *         schema:
  *           type: integer
  *           minimum: 1
- *         description: Unique ID of the report to edit
- *         example: 2
+ *         description: ID of the report to edit
+ *         example: 122
  *     requestBody:
  *       required: true
  *       content:
@@ -700,167 +499,42 @@ router.get('/download/:report_id', auth, reportsController.downloadSingleReport)
  *             basic_edit:
  *               summary: Update basic information
  *               value:
- *                 doctor_name: "satyammmm"
- *                 report_reason: "Routine checkup "
- *                 report_analysis: "Blood test  j"
+ *                 report_title: "Updated Blood Test Report"
+ *                 report_type: "Lab"
+ *                 doctor_name: "Dr. Smith"
  *             complete_edit:
- *               summary: Update all fields with medical history
+ *               summary: Update with new files
  *               value:
- *                 related_user: ""
- *                 doctor_name: "satyammmm"
- *                 report_date: "2024-09-27"
- *                 report_reason: "Routine checkup "
- *                 report_analysis: "Blood test  j"
- *                 food_allergies: "Nuts"
- *                 drug_allergies: "Penicillin"
- *                 blood_group: "O+"
- *                 implants: "None"
- *                 surgeries: "hello"
- *                 family_medical_history: "Diabetes"
- *                 medical_condition: "Hypertension"
- *                 allergies: "Pollen"
- *                 medications: "Lisinopril"
- *                 deletePages: []
- *                 addAfterPage: ""
+ *                 report_title: "Updated Blood Test Report"
+ *                 report_type: "Lab"
+ *                 report_date: "2025-06-29"
+ *                 doctor_name: "Dr. Smith"
+ *                 target_user_id: 123
+ *                 doctor_id: 456
  *     responses:
  *       200:
  *         description: Report updated successfully
  *         content:
  *           application/json:
  *             schema:
- *               $ref: '#/components/schemas/GenericResponse'
+ *               $ref: '#/components/schemas/EditReportResponse'
  *             example:
  *               status: true
  *               status_code: 200
  *               message: "Report updated successfully"
- *       400:
- *         description: Validation error - Invalid data format or file constraints
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/ErrorResponse'
- *             examples:
- *               invalid_file:
- *                 summary: Invalid file format
- *                 value:
- *                   status: false
- *                   status_code: 400
- *                   message: "Only PDF files are allowed"
- *               no_changes:
- *                 summary: No fields provided for update
- *                 value:
- *                   status: false
- *                   status_code: 400
- *                   message: "At least one field must be provided for update"
- *       401:
- *         description: Authentication required - Invalid or missing JWT token
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/ErrorResponse'
- *             example:
- *               status: false
- *               status_code: 401
- *               message: "Authentication token required"
  *       404:
- *         description: Report not found or user not authorized to edit
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/ErrorResponse'
- *             example:
- *               status: false
- *               status_code: 404
- *               message: "Report with ID 2 not found or access denied"
+ *         description: Report not found or unauthorized access
  *       500:
- *         description: Internal server error during update
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/ErrorResponse'
- *             example:
- *               status: false
- *               message: "Internal server error while updating report"
+ *         description: Internal server error
  */
 router.put('/edit/:report_id', auth, upload.array('report_pdf'), reportsController.editReport);
 
 /**
  * @swagger
- * /api/reports/download:
- *   get:
- *     summary: Download merged reports as a single PDF
- *     description: Download multiple reports merged into a single PDF file. Can optionally filter by related user.
- *     tags: [Reports]
- *     security:
- *       - bearerAuth: []
- *     requestBody:
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             properties:
- *               related_user:
- *                 type: integer
- *                 description: Optional filter by related user ID (0 for all users)
- *                 example: 0
- *           examples:
- *             all_reports:
- *               summary: Download all user reports
- *               value:
- *                 related_user: 0
- *             family_member_reports:
- *               summary: Download specific family member reports
- *               value:
- *                 related_user: 5
- *     responses:
- *       200:
- *         description: Reports merged and download link generated successfully
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/DownloadResponse'
- *             example:
- *               status: true
- *               message: "Reports merged successfully"
- *               fileUrl: "http://13.234.252.76:3000/uploads/reports/merged-report-1-0.pdf"
- *       401:
- *         description: Authentication required - Invalid or missing JWT token
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/ErrorResponse'
- *             example:
- *               status: false
- *               status_code: 401
- *               message: "Authentication token required"
- *       404:
- *         description: No reports found to merge and download
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/ErrorResponse'
- *             example:
- *               status: false
- *               status_code: 404
- *               message: "No reports found to download"
- *       500:
- *         description: Server error while processing report merge
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/ErrorResponse'
- *             example:
- *               status: false
- *               message: "Server error while processing report download"
- */
-router.get('/download', auth, reportsController.downloadMergedReports);
-
-/**
- * @swagger
  * /api/reports/delete/{report_id}:
  *   delete:
- *     summary: Delete a medical report
- *     description: Permanently delete a medical report and its associated PDF files. This action cannot be undone.
+ *     summary: Delete a report
+ *     description: Deletes a user's report and deducts the storage used by the file. Only the report owner can delete it.
  *     tags: [Reports]
  *     security:
  *       - bearerAuth: []
@@ -871,59 +545,114 @@ router.get('/download', auth, reportsController.downloadMergedReports);
  *         schema:
  *           type: integer
  *           minimum: 1
- *         description: Unique ID of the report to delete
- *         example: 9
+ *         description: ID of the report to delete
+ *         example: 123
  *     responses:
  *       200:
  *         description: Report deleted successfully
  *         content:
  *           application/json:
  *             schema:
- *               $ref: '#/components/schemas/GenericResponse'
+ *               $ref: '#/components/schemas/DeleteReportResponse'
  *             example:
  *               status: true
  *               status_code: 200
  *               message: "Report deleted successfully"
- *       401:
- *         description: Authentication required - Invalid or missing JWT token
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/ErrorResponse'
- *             example:
- *               status: false
- *               status_code: 401
- *               message: "Authentication token required"
  *       403:
  *         description: Unauthorized to delete this report
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/ErrorResponse'
- *             example:
- *               status: false
- *               status_code: 403
- *               message: "You are not authorized to delete this report"
  *       404:
  *         description: Report not found
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/ErrorResponse'
- *             example:
- *               status: false
- *               status_code: 404
- *               message: "Report with ID 9 not found"
  *       500:
- *         description: Failed to delete report due to server error
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/ErrorResponse'
- *             example:
- *               status: false
- *               message: "Failed to delete report due to server error"
+ *         description: Failed to delete report
  */
 router.delete('/delete/:report_id', auth, reportsController.deleteReport);
+
+/**
+ * @swagger
+ * /api/reports/download:
+ *   get:
+ *     summary: Download merged reports
+ *     description: Merges and downloads all PDF reports of the authenticated user or a related user into a single file.
+ *     tags: [Reports]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       content:
+ *         application/json:
+ *           schema:
+ *             $ref: '#/components/schemas/DownloadMergedRequest'
+ *           examples:
+ *             all_reports:
+ *               summary: Download all user reports
+ *               value:
+ *                 related_user: ""
+ *                 start_date: ""
+ *                 end_date: ""
+ *             filtered_reports:
+ *               summary: Download reports with filters
+ *               value:
+ *                 related_user: "family_member_123"
+ *                 start_date: "2025-01-01"
+ *                 end_date: "2025-12-31"
+ *     responses:
+ *       200:
+ *         description: Reports merged and download link generated successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/DownloadMergedResponse'
+ *             example:
+ *               status: true
+ *               message: "Reports merged successfully"
+ *               fileUrl: "https://your-domain.com/uploads/users/reports/merged-report-123.pdf"
+ *       404:
+ *         description: No reports found to download
+ *       500:
+ *         description: Server error while processing report download
+ */
+router.get('/download', auth, reportsController.downloadMergedReports);
+
+/**
+ * @swagger
+ * /api/reports/download/{report_id}:
+ *   get:
+ *     summary: Download a single report with summary page
+ *     description: Downloads a PDF report by ID with an added summary page containing patient and report information.
+ *     tags: [Reports]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: report_id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: ID of the report to download
+ *         example: "122"
+ *     responses:
+ *       200:
+ *         description: Report downloaded successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/DownloadSingleResponse'
+ *             example:
+ *               status: true
+ *               status_code: 200
+ *               message: "Report downloaded successfully"
+ *               data:
+ *                 fileUrl: "http://43.204.91.138:3000/uploads/users/reports/summary_1751222840180-file.pdf"
+ *                 fileName: "summary_1751222840180-file.pdf"
+ *                 patientName: "John Doe"
+ *                 doctorName: "Dr. Smith"
+ *                 reportDate: "June 29, 2025"
+ *                 reportReason: "Annual Checkup"
+ *                 reportNotes: "All vitals are normal."
+ *       404:
+ *         description: Report or PDF file not found
+ *       500:
+ *         description: Internal server error
+ */
+router.get('/download/:report_id', auth, reportsController.downloadSingleReport);
 
 module.exports = router; 
