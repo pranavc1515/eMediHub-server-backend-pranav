@@ -46,11 +46,13 @@ exports.uploadReport = async (req, res) => {
             }
         });
 
-        // Add file if present
-        if (req.file) {
-            formData.append('file', req.file.buffer, {
-                filename: req.file.originalname,
-                contentType: req.file.mimetype
+        // Add files if present (supports multiple files)
+        if (req.files && req.files.length > 0) {
+            req.files.forEach(file => {
+                formData.append('report_pdf', file.buffer, {
+                    filename: file.originalname,
+                    contentType: file.mimetype
+                });
             });
         }
 
@@ -94,12 +96,12 @@ exports.viewReports = async (req, res) => {
 
         const axiosInstance = createAxiosInstance(token);
 
-        // Build query parameters
-        const params = {};
-        if (req.query.start_date) params.start_date = req.query.start_date;
-        if (req.query.end_date) params.end_date = req.query.end_date;
+        // Handle both query parameters and request body filters
+        const requestData = req.body || {};
 
-        const response = await axiosInstance.get('/reports/view', { params });
+        const response = await axiosInstance.get('/reports/view', {
+            data: requestData
+        });
 
         res.status(response.status).json(response.data);
     } catch (error) {
@@ -233,6 +235,81 @@ exports.downloadSingleReport = async (req, res) => {
             res.status(500).json({
                 status: false,
                 message: 'Internal server error while downloading report',
+                error: error.message
+            });
+        }
+    }
+};
+
+// Edit an existing medical report
+exports.editReport = async (req, res) => {
+    try {
+        const token = req.header('Authorization')?.replace('Bearer ', '');
+
+        if (!token) {
+            return res.status(401).json({
+                status: false,
+                status_code: 401,
+                message: 'Authentication token required'
+            });
+        }
+
+        const { report_id } = req.params;
+
+        if (!report_id) {
+            return res.status(400).json({
+                status: false,
+                status_code: 400,
+                message: 'Report ID is required'
+            });
+        }
+
+        // Create FormData for file upload
+        const formData = new FormData();
+
+        // Add all form fields to FormData
+        const fields = [
+            'related_user', 'doctor_name', 'report_date', 'report_reason',
+            'report_analysis', 'food_allergies', 'drug_allergies',
+            'blood_group', 'implants', 'surgeries', 'family_medical_history',
+            'medical_condition', 'allergies', 'medications', 'deletePages[]', 'addAfterPage'
+        ];
+
+        fields.forEach(field => {
+            if (req.body[field] !== undefined) {
+                formData.append(field, req.body[field]);
+            }
+        });
+
+        // Add files if present (supports multiple files)
+        if (req.files && req.files.length > 0) {
+            req.files.forEach(file => {
+                formData.append('report_pdf', file.buffer, {
+                    filename: file.originalname,
+                    contentType: file.mimetype
+                });
+            });
+        }
+
+        // Make request to 3rd party API
+        const response = await axios.put(`${REPORTS_API_BASE_URL}/reports/edit/${report_id}`, formData, {
+            headers: {
+                'Authorization': `Bearer ${token}`,
+                ...formData.getHeaders()
+            },
+            timeout: 60000 // 60 second timeout for file uploads
+        });
+
+        res.status(response.status).json(response.data);
+    } catch (error) {
+        console.error('Reports edit error:', error);
+
+        if (error.response) {
+            res.status(error.response.status).json(error.response.data);
+        } else {
+            res.status(500).json({
+                status: false,
+                message: 'Internal server error while updating report',
                 error: error.message
             });
         }
