@@ -66,7 +66,7 @@ const DoctorPersonal = sequelize.define(
     // Indicates whether admin has verified this doctor
     isVerified: {
       type: DataTypes.BOOLEAN,
-      defaultValue: false,
+      defaultValue: true,
     },
   },
   {
@@ -136,7 +136,7 @@ const DoctorProfessional = sequelize.define(
     },
     status: {
       type: DataTypes.ENUM('Verified', 'Unverified', 'Pending Verification'),
-      defaultValue: 'Unverified',
+      defaultValue: 'Verified',
     },
     yearsOfExperience: {
       type: DataTypes.INTEGER,
