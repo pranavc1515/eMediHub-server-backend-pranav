@@ -29,32 +29,45 @@ exports.uploadReport = async (req, res) => {
             });
         }
 
+        // Validate required fields
+        if (!req.body.doctor_name || !req.body.report_date) {
+            return res.status(400).json({
+                status: false,
+                status_code: 400,
+                message: 'doctor_name and report_date are required'
+            });
+        }
+
+        if (!req.files || req.files.length === 0) {
+            return res.status(400).json({
+                status: false,
+                status_code: 400,
+                message: 'At least one PDF file is required'
+            });
+        }
+
         // Create FormData for file upload
         const formData = new FormData();
 
-        // Add all form fields to FormData
-        const fields = [
-            'report_title', 'report_type', 'doctor_name', 'doctor_id',
-            'target_user_id', 'related_user', 'report_date', 'report_reason',
-            'report_analysis', 'report_pdf', 'food_allergies', 'drug_allergies',
-            'blood_group', 'implants', 'surgeries', 'family_medical_history'
-        ];
+        // Add required fields
+        formData.append('doctor_name', req.body.doctor_name);
+        formData.append('report_date', req.body.report_date);
 
-        fields.forEach(field => {
-            if (req.body[field]) {
-                formData.append(field, req.body[field]);
-            }
-        });
-
-        // Add files if present (supports multiple files)
-        if (req.files && req.files.length > 0) {
-            req.files.forEach(file => {
-                formData.append('report_pdf', file.buffer, {
-                    filename: file.originalname,
-                    contentType: file.mimetype
-                });
-            });
+        // Add optional fields
+        if (req.body.target_user_id) {
+            formData.append('target_user_id', req.body.target_user_id);
         }
+        if (req.body.doctor_id) {
+            formData.append('doctor_id', req.body.doctor_id);
+        }
+
+        // Add files (supports multiple files)
+        req.files.forEach(file => {
+            formData.append('report_pdf', file.buffer, {
+                filename: file.originalname,
+                contentType: file.mimetype
+            });
+        });
 
         // Make request to 3rd party API
         const response = await axios.post(`${REPORTS_API_BASE_URL}/reports/upload`, formData, {
@@ -96,12 +109,8 @@ exports.viewReports = async (req, res) => {
 
         const axiosInstance = createAxiosInstance(token);
 
-        // Handle both query parameters and request body filters
-        const requestData = req.body || {};
-
-        const response = await axiosInstance.get('/reports/view', {
-            data: requestData
-        });
+        // Simple GET request without request body as per new API
+        const response = await axiosInstance.get('/reports/view');
 
         res.status(response.status).json(response.data);
     } catch (error) {
@@ -113,6 +122,79 @@ exports.viewReports = async (req, res) => {
             res.status(500).json({
                 status: false,
                 message: 'Internal server error while fetching reports',
+                error: error.message
+            });
+        }
+    }
+};
+
+// Edit an existing medical report
+exports.editReport = async (req, res) => {
+    try {
+        const token = req.header('Authorization')?.replace('Bearer ', '');
+
+        if (!token) {
+            return res.status(401).json({
+                status: false,
+                status_code: 401,
+                message: 'Authentication token required'
+            });
+        }
+
+        const { report_id } = req.params;
+
+        if (!report_id) {
+            return res.status(400).json({
+                status: false,
+                status_code: 400,
+                message: 'Report ID is required'
+            });
+        }
+
+        // Create FormData for file upload
+        const formData = new FormData();
+
+        // Add all form fields to FormData (all fields are optional for edit)
+        const fields = [
+            'report_title', 'report_type', 'report_date', 'doctor_name',
+            'target_user_id', 'doctor_id'
+        ];
+
+        fields.forEach(field => {
+            if (req.body[field] !== undefined && req.body[field] !== '') {
+                formData.append(field, req.body[field]);
+            }
+        });
+
+        // Add files if present (supports multiple files)
+        if (req.files && req.files.length > 0) {
+            req.files.forEach(file => {
+                formData.append('report_pdf', file.buffer, {
+                    filename: file.originalname,
+                    contentType: file.mimetype
+                });
+            });
+        }
+
+        // Make request to 3rd party API
+        const response = await axios.put(`${REPORTS_API_BASE_URL}/reports/edit/${report_id}`, formData, {
+            headers: {
+                'Authorization': `Bearer ${token}`,
+                ...formData.getHeaders()
+            },
+            timeout: 60000 // 60 second timeout for file uploads
+        });
+
+        res.status(response.status).json(response.data);
+    } catch (error) {
+        console.error('Reports edit error:', error);
+
+        if (error.response) {
+            res.status(error.response.status).json(error.response.data);
+        } else {
+            res.status(500).json({
+                status: false,
+                message: 'Internal server error while updating report',
                 error: error.message
             });
         }
@@ -174,13 +256,20 @@ exports.downloadMergedReports = async (req, res) => {
             });
         }
 
-        const axiosInstance = createAxiosInstance(token);
+        // Note: The API uses GET with request body (unusual but per API documentation)
+        const requestData = {
+            related_user: req.body.related_user || '',
+            start_date: req.body.start_date || '',
+            end_date: req.body.end_date || ''
+        };
 
-        // Send request body if provided
-        const requestData = req.body || {};
-
-        const response = await axiosInstance.get('/reports/download', {
-            data: requestData
+        const response = await axios.get(`${REPORTS_API_BASE_URL}/reports/download`, {
+            headers: {
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'application/json'
+            },
+            data: requestData,
+            timeout: 60000 // 60 second timeout for file processing
         });
 
         res.status(response.status).json(response.data);
@@ -235,81 +324,6 @@ exports.downloadSingleReport = async (req, res) => {
             res.status(500).json({
                 status: false,
                 message: 'Internal server error while downloading report',
-                error: error.message
-            });
-        }
-    }
-};
-
-// Edit an existing medical report
-exports.editReport = async (req, res) => {
-    try {
-        const token = req.header('Authorization')?.replace('Bearer ', '');
-
-        if (!token) {
-            return res.status(401).json({
-                status: false,
-                status_code: 401,
-                message: 'Authentication token required'
-            });
-        }
-
-        const { report_id } = req.params;
-
-        if (!report_id) {
-            return res.status(400).json({
-                status: false,
-                status_code: 400,
-                message: 'Report ID is required'
-            });
-        }
-
-        // Create FormData for file upload
-        const formData = new FormData();
-
-        // Add all form fields to FormData
-        const fields = [
-            'related_user', 'doctor_name', 'report_date', 'report_reason',
-            'report_analysis', 'food_allergies', 'drug_allergies',
-            'blood_group', 'implants', 'surgeries', 'family_medical_history',
-            'medical_condition', 'allergies', 'medications', 'deletePages[]', 'addAfterPage'
-        ];
-
-        fields.forEach(field => {
-            if (req.body[field] !== undefined) {
-                formData.append(field, req.body[field]);
-            }
-        });
-
-        // Add files if present (supports multiple files)
-        if (req.files && req.files.length > 0) {
-            req.files.forEach(file => {
-                formData.append('report_pdf', file.buffer, {
-                    filename: file.originalname,
-                    contentType: file.mimetype
-                });
-            });
-        }
-
-        // Make request to 3rd party API
-        const response = await axios.put(`${REPORTS_API_BASE_URL}/reports/edit/${report_id}`, formData, {
-            headers: {
-                'Authorization': `Bearer ${token}`,
-                ...formData.getHeaders()
-            },
-            timeout: 60000 // 60 second timeout for file uploads
-        });
-
-        res.status(response.status).json(response.data);
-    } catch (error) {
-        console.error('Reports edit error:', error);
-
-        if (error.response) {
-            res.status(error.response.status).json(error.response.data);
-        } else {
-            res.status(500).json({
-                status: false,
-                message: 'Internal server error while updating report',
                 error: error.message
             });
         }
