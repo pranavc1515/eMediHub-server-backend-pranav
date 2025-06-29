@@ -535,6 +535,9 @@ router.put("/personal-details/:id", auth, async (req, res) => {
  *                   type: string
  *                   format: binary
  *                 description: Certificate files (PDF, JPG, JPEG, PNG)
+ *               certificatesToRemove:
+ *                 type: string
+ *                 description: JSON string array of certificate keys/URLs/indices to remove
  *     responses:
  *       200:
  *         description: Professional details updated successfully
@@ -558,6 +561,70 @@ router.put("/personal-details/:id", auth, async (req, res) => {
  *       404:
  *         description: Doctor not found
  */
+// Helper function to get current certificates
+const getCurrentCertificates = async (doctorId) => {
+  try {
+    const professional = await DoctorProfessional.findOne({ where: { doctorId } });
+    return professional ? (professional.certificates || []) : [];
+  } catch (error) {
+    console.error('Error getting current certificates:', error);
+    return [];
+  }
+};
+
+// Helper function to remove certificates
+const removeCertificates = async (certificatesToRemove, existingCertificates) => {
+  const certificatesToDelete = [];
+  const remainingCertificates = [];
+
+  // Parse certificatesToRemove if it's a string
+  let parsedCertificatesToRemove = [];
+  if (typeof certificatesToRemove === 'string') {
+    try {
+      parsedCertificatesToRemove = JSON.parse(certificatesToRemove);
+    } catch (e) {
+      console.error('Error parsing certificatesToRemove:', e);
+      parsedCertificatesToRemove = [];
+    }
+  } else if (Array.isArray(certificatesToRemove)) {
+    parsedCertificatesToRemove = certificatesToRemove;
+  }
+
+  // Separate certificates to keep and to delete
+  existingCertificates.forEach((cert, index) => {
+    if (parsedCertificatesToRemove.includes(index) ||
+      parsedCertificatesToRemove.includes(cert.key) ||
+      parsedCertificatesToRemove.includes(cert.url)) {
+      certificatesToDelete.push(cert);
+    } else {
+      remainingCertificates.push(cert);
+    }
+  });
+
+  // Delete certificates from S3
+  const s3DeletionPromises = certificatesToDelete.map(async (cert) => {
+    if (cert.key) {
+      try {
+        await deleteFromS3(cert.key);
+        console.log(`Successfully deleted certificate from S3: ${cert.key}`);
+        return { success: true, cert };
+      } catch (error) {
+        console.error(`Failed to delete certificate from S3: ${cert.key}`, error);
+        // Continue anyway - remove from database even if S3 deletion fails
+        return { success: false, cert, error: error.message };
+      }
+    }
+    return { success: true, cert };
+  });
+
+  await Promise.all(s3DeletionPromises);
+
+  return {
+    remainingCertificates,
+    deletedCertificates: certificatesToDelete
+  };
+};
+
 router.put("/professional-details/:id", auth, upload.array('certificates', 10), async (req, res) => {
   try {
     const {
@@ -571,6 +638,7 @@ router.put("/professional-details/:id", auth, upload.array('certificates', 10), 
       communicationLanguages,
       consultationFees,
       availableDays,
+      certificatesToRemove
     } = req.body;
 
     const doctorId = parseInt(req.params.id);
@@ -602,10 +670,20 @@ router.put("/professional-details/:id", auth, upload.array('certificates', 10), 
       });
     }
 
-    // Handle certificate uploads
-    let existingCertificates = professional.certificates || [];
+    // Get current certificates
+    let currentCertificates = await getCurrentCertificates(doctorId);
 
-    // Upload certificates if present
+    // Handle certificate removal first
+    let finalCertificates = currentCertificates;
+    let deletedCertificates = [];
+
+    if (certificatesToRemove) {
+      const removalResult = await removeCertificates(certificatesToRemove, currentCertificates);
+      finalCertificates = removalResult.remainingCertificates;
+      deletedCertificates = removalResult.deletedCertificates;
+    }
+
+    // Handle new certificate uploads
     if (files && files.length > 0) {
       const certificateUploadPromises = files.map(file =>
         uploadDoctorDocumentToS3(file, doctorId, 'certificates')
@@ -622,7 +700,7 @@ router.put("/professional-details/:id", auth, upload.array('certificates', 10), 
           key: result.key
         }));
 
-      existingCertificates = [...existingCertificates, ...newCertificates];
+      finalCertificates = [...finalCertificates, ...newCertificates];
     }
 
     // Parse JSON strings for arrays
@@ -652,7 +730,7 @@ router.put("/professional-details/:id", auth, upload.array('certificates', 10), 
       registrationNumber: registrationNumber || professional.registrationNumber,
       registrationState: registrationState || professional.registrationState,
       expiryDate: expiryDate || professional.expiryDate,
-      certificates: existingCertificates,
+      certificates: finalCertificates,
       clinicName: clinicName || professional.clinicName,
       yearsOfExperience: yearsOfExperience ? parseInt(yearsOfExperience) : professional.yearsOfExperience,
       communicationLanguages: parsedCommunicationLanguages || professional.communicationLanguages,
@@ -661,10 +739,20 @@ router.put("/professional-details/:id", auth, upload.array('certificates', 10), 
       status: 'Pending Verification'
     });
 
+    // Prepare response with additional info about operations performed
+    const responseData = {
+      ...professional.toJSON(),
+      operationSummary: {
+        certificatesAdded: files ? files.length : 0,
+        certificatesRemoved: deletedCertificates.length,
+        totalCertificates: finalCertificates.length
+      }
+    };
+
     res.json({
       success: true,
       message: 'Professional details updated successfully',
-      data: professional
+      data: responseData
     });
   } catch (error) {
     console.error('Error updating professional details:', error);
@@ -1172,6 +1260,100 @@ router.get("/available", async (req, res) => {
       success: false,
       message: "Error fetching available doctors",
       error: error.message,
+    });
+  }
+});
+
+/**
+ * @swagger
+ * /api/doctors/professional-details/{id}/certificates:
+ *   get:
+ *     summary: Get doctor's current certificates
+ *     tags: [Doctors]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         description: Doctor's ID
+ *     responses:
+ *       200:
+ *         description: Certificates retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     certificates:
+ *                       type: array
+ *                       items:
+ *                         type: object
+ *                         properties:
+ *                           url:
+ *                             type: string
+ *                           name:
+ *                             type: string
+ *                           type:
+ *                             type: string
+ *                           uploadedAt:
+ *                             type: string
+ *                           key:
+ *                             type: string
+ *                     totalCount:
+ *                       type: integer
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Forbidden - User not authorized to view this doctor's certificates
+ *       404:
+ *         description: Doctor not found
+ */
+router.get("/professional-details/:id/certificates", auth, async (req, res) => {
+  try {
+    const doctorId = parseInt(req.params.id);
+
+    // Check if the authenticated user is a doctor
+    if (!req.user || !req.user.id) {
+      return res.status(401).json({
+        success: false,
+        message: 'Authentication required'
+      });
+    }
+
+    // Doctors can only view their own certificates
+    if (req.user.id !== doctorId) {
+      return res.status(403).json({
+        success: false,
+        message: 'You can only view your own certificates'
+      });
+    }
+
+    // Get current certificates
+    const certificates = await getCurrentCertificates(doctorId);
+
+    res.json({
+      success: true,
+      data: {
+        certificates,
+        totalCount: certificates.length
+      }
+    });
+  } catch (error) {
+    console.error('Error getting certificates:', error);
+
+    res.status(400).json({
+      success: false,
+      message: 'Failed to get certificates',
+      error: error.message
     });
   }
 });
