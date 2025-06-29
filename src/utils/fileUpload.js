@@ -59,6 +59,42 @@ const uploadToS3 = async (file, consultationId, doctorId, patientId) => {
     }
 };
 
+// Function to upload doctor documents (certificates/documents) to S3
+const uploadDoctorDocumentToS3 = async (file, doctorId, documentType) => {
+    // Generate unique file name with appropriate path
+    const fileExtension = path.extname(file.originalname);
+    const key = `doctors/${doctorId}/${documentType}/${uuidv4()}${fileExtension}`;
+
+    const params = {
+        Bucket: s3BucketName,
+        Key: key,
+        Body: file.buffer,
+        ContentType: file.mimetype,
+        Metadata: {
+            'doctor-id': doctorId.toString(),
+            'document-type': documentType,
+            'original-name': file.originalname
+        }
+    };
+
+    try {
+        const result = await s3.upload(params).promise();
+        return {
+            success: true,
+            fileUrl: result.Location,
+            key: result.Key,
+            filename: file.originalname,
+            fileType: file.mimetype
+        };
+    } catch (error) {
+        console.error('Error uploading doctor document to S3:', error);
+        return {
+            success: false,
+            error: error.message
+        };
+    }
+};
+
 // Function to generate PDF from custom prescription data
 const generatePrescriptionPDF = async (prescriptionData, consultationId, doctorId, patientId) => {
     try {
@@ -217,6 +253,7 @@ const deleteFromS3 = async (key) => {
 module.exports = {
     upload,
     uploadToS3,
+    uploadDoctorDocumentToS3,
     generatePrescriptionPDF,
     deleteFromS3
 }; 

@@ -55,11 +55,6 @@ const DoctorPersonal = sequelize.define(
       type: DataTypes.STRING(255),
       allowNull: true,
     },
-    certificates: {
-      type: DataTypes.JSON,
-      defaultValue: [],
-      allowNull: true,
-    },
     isOnline: {
       type: DataTypes.ENUM('available', 'offline'),
       defaultValue: 'offline',
