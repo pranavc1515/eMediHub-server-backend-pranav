@@ -14,45 +14,22 @@ const auth = async (req, res, next) => {
     }
 
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    let user;
+    console.log('Decoded JWT:', decoded);
 
-    if (decoded.type === 'doctor') {
-      user = await DoctorPersonal.findOne({ where: { id: decoded.id } });
-    } else {
-      user = await Patient.findOne({ where: { id: decoded.id } });
-    }
-
-    if (!user) {
-      throw new Error();
-    }
-
+    // Trust decoded token (from external admin system or internal login)
     req.token = token;
-    req.user = user;
+    req.user = decoded;
+
     next();
   } catch (error) {
-    res.status(401).json({
+    return res.status(401).json({
       success: false,
       message: 'Please authenticate',
     });
   }
 };
 
-// Middleware for proxy endpoints - just pass through the token without any validation
-const authProxy = async (req, res, next) => {
-  const token = req.header('Authorization')?.replace('Bearer ', '');
-
-  if (!token) {
-    return res.status(401).json({
-      success: false,
-      message: 'No authentication token provided',
-    });
-  }
-
-  // Just pass the token through - external API will handle all validation
-  req.token = token;
-  next();
-};
-
+// Authorization middleware to check user roles
 const authorize = (...roles) => {
   return (req, res, next) => {
     if (!roles.includes(req.user.role)) {
@@ -65,4 +42,4 @@ const authorize = (...roles) => {
   };
 };
 
-module.exports = { auth, authProxy, authorize };
+module.exports = { auth, authorize };
