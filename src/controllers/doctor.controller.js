@@ -228,7 +228,7 @@ const updateProfessionalDetails = async (doctorId, professionalData) => {
     if (!professional) {
       professional = await DoctorProfessional.create({
         doctorId,
-        status: 'Pending Verification',
+        status: 'Verified',
       });
     }
 
@@ -291,7 +291,7 @@ const updateProfessionalDetails = async (doctorId, professionalData) => {
         availableDays !== undefined
           ? availableDays
           : professional.availableDays,
-      status: 'Pending Verification',
+      status: 'Verified',
     });
 
     return professional;
