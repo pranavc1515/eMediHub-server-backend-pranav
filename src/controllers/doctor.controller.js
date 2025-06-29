@@ -34,7 +34,7 @@ const registerDoctor = async (phoneNumber) => {
       // Create an empty professional record for the doctor
       await DoctorProfessional.create({
         doctorId: doctor.id,
-        status: 'Pending Verification',
+        status: 'Verified',
       });
     }
 
