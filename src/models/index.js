@@ -12,7 +12,6 @@ const Patient = require('./patient.model');
 const Consultation = require('./consultation.model');
 const PatientQueue = require('./patientQueue.model');
 const Prescription = require('./prescription.model');
-const Family = require('./family.model');
 const { User } = require('./user.model');
 
 // Set custom hooks for models
@@ -68,10 +67,6 @@ const setupAssociations = () => {
     as: 'queueEntries',
     onDelete: 'SET NULL',
   });
-
-  // Family relationships (without strict foreign key constraints)
-  // Note: We're not setting up strict foreign key relationships to allow flexibility
-  // The userId field will be a simple string reference
 };
 
 // Initialize all models
@@ -89,7 +84,6 @@ module.exports = {
   Consultation,
   PatientQueue,
   Prescription,
-  Family,
   User,
   initializeModels
 }; 

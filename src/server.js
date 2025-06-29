@@ -21,7 +21,6 @@ require('./models/doctor.model');
 require('./models/consultation.model');
 require('./models/patientQueue.model');
 require('./models/prescription.model');
-require('./models/family.model');
 require('./models/user.model');
 
 // Load routes
@@ -40,7 +39,6 @@ const consultationRoutes = require('./routes/consultation.routes');
 const paymentRoutes = require('./routes/payment.routes');
 const prescriptionRoutes = require('./routes/prescription.routes');
 const patientQueueRoutes = require('./routes/patientQueue.routes');
-const familyRoutes = require('./routes/family.routes');
 const reportsRoutes = require('./routes/reports.routes');
 
 // Configure CORS to allow all origins
@@ -120,7 +118,6 @@ app.use('/api/consultation', consultationRoutes);
 app.use('/api/payment', paymentRoutes);
 app.use('/api/prescriptions', prescriptionRoutes);
 app.use('/api/patientQueue', patientQueueRoutes);
-app.use('/api/family', familyRoutes);
 app.use('/api/reports', reportsRoutes);
 
 // Error handler
@@ -145,7 +142,7 @@ db.authenticate()
   })
   .then(async () => {
     console.log('Models synchronized.');
-    
+
     // Handle foreign key constraints based on microservice mode
     try {
       if (ENABLE_PATIENT_MICROSERVICE === 'true') {
@@ -159,7 +156,7 @@ db.authenticate()
       console.warn('⚠️  Warning: Foreign key constraint migration failed:', error.message);
       console.log('🚀 Continuing server startup...');
     }
-    
+
     server.listen(PORT, () => {
       console.log(`Server listening on http://localhost:${PORT}`);
       console.log(`Swagger UI: http://localhost:${PORT}/api-docs`);

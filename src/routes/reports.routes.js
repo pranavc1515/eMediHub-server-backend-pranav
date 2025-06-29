@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const multer = require('multer');
-const { auth } = require('../middleware/auth.middleware');
+const { authProxy } = require('../middleware/auth.middleware');
 const reportsController = require('../controllers/reports.controller');
 
 // Configure multer for file uploads (memory storage)
@@ -113,7 +113,7 @@ const upload = multer({
  *       500:
  *         description: Internal server error
  */
-router.post('/upload', auth, upload.single('file'), reportsController.uploadReport);
+router.post('/upload', authProxy, upload.single('file'), reportsController.uploadReport);
 
 /**
  * @swagger
@@ -169,7 +169,7 @@ router.post('/upload', auth, upload.single('file'), reportsController.uploadRepo
  *       500:
  *         description: Internal server error
  */
-router.get('/view', auth, reportsController.viewReports);
+router.get('/view', authProxy, reportsController.viewReports);
 
 /**
  * @swagger
@@ -207,7 +207,7 @@ router.get('/view', auth, reportsController.viewReports);
  *       500:
  *         description: Failed to delete report
  */
-router.delete('/delete/:report_id', auth, reportsController.deleteReport);
+router.delete('/delete/:report_id', authProxy, reportsController.deleteReport);
 
 /**
  * @swagger
@@ -253,7 +253,7 @@ router.delete('/delete/:report_id', auth, reportsController.deleteReport);
  *       500:
  *         description: Server error while processing report download
  */
-router.get('/download', auth, reportsController.downloadMergedReports);
+router.get('/download', authProxy, reportsController.downloadMergedReports);
 
 /**
  * @swagger
@@ -306,6 +306,6 @@ router.get('/download', auth, reportsController.downloadMergedReports);
  *       500:
  *         description: Internal server error
  */
-router.get('/download/:report_id', auth, reportsController.downloadSingleReport);
+router.get('/download/:report_id', authProxy, reportsController.downloadSingleReport);
 
 module.exports = router; 
