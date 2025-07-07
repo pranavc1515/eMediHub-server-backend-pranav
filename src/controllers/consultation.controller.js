@@ -835,7 +835,7 @@ const checkConsultationStatus = async (req, res) => {
         patientId,
         status: 'completed',
         updatedAt: {
-          [Op.gte]: new Date(Date.now() - 5 * 60 * 1000), // Within last 5 minutes
+          [Op.gte]: new Date(Date.now() - 30 * 1000), // Within last 30s
         },
       },
       order: [['updatedAt', 'DESC']],

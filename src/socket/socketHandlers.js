@@ -11,6 +11,9 @@ const patientSocketMap = new Map();
 const getDoctorSocketId = (doctorId) => doctorSocketMap.get(doctorId);
 const getPatientSocketId = (patientId) => patientSocketMap.get(patientId);
 
+// Store room participant data: roomName -> Set of participantIds
+const roomParticipants = new Map();
+
 const setupVideoQueueSocket = (io) => {
   io.on('connection', (socket) => {
     const { userType, userId } = socket.handshake.query;
@@ -291,6 +294,132 @@ const setupVideoQueueSocket = (io) => {
       }
     });
 
+    // Handle participant joining video room
+    socket.on('PARTICIPANT_JOINED_ROOM', async (data) => {
+      try {
+        const { roomName, participantIdentity, consultationId } = data;
+        
+        if (!roomName || !participantIdentity) {
+          console.error('Missing roomName or participantIdentity in PARTICIPANT_JOINED_ROOM');
+          return;
+        }
+
+        // Initialize room participants set if not exists
+        if (!roomParticipants.has(roomName)) {
+          roomParticipants.set(roomName, new Set());
+        }
+
+        // Add participant to room
+        roomParticipants.get(roomName).add(participantIdentity);
+        const participantCount = roomParticipants.get(roomName).size;
+
+        console.log(`Participant ${participantIdentity} joined room ${roomName}. Total participants: ${participantCount}`);
+
+        // Find consultation to get doctor and patient IDs
+        if (consultationId) {
+          const consultation = await Consultation.findByPk(consultationId);
+          if (consultation) {
+            // Notify both doctor and patient about participant count update
+            const doctorSocketId = getDoctorSocketId(consultation.doctorId);
+            const patientSocketId = getPatientSocketId(consultation.patientId);
+
+            const participantData = {
+              roomName,
+              participantCount,
+              consultationId,
+              participantJoined: participantIdentity
+            };
+
+            if (doctorSocketId) {
+              io.to(doctorSocketId).emit('PARTICIPANT_COUNT_UPDATE', participantData);
+            }
+            if (patientSocketId) {
+              io.to(patientSocketId).emit('PARTICIPANT_COUNT_UPDATE', participantData);
+            }
+          }
+        }
+      } catch (error) {
+        console.error('Error in PARTICIPANT_JOINED_ROOM:', error);
+      }
+    });
+
+    // Handle participant leaving video room
+    socket.on('PARTICIPANT_LEFT_ROOM', async (data) => {
+      try {
+        const { roomName, participantIdentity, consultationId } = data;
+        
+        if (!roomName || !participantIdentity) {
+          console.error('Missing roomName or participantIdentity in PARTICIPANT_LEFT_ROOM');
+          return;
+        }
+
+        // Remove participant from room
+        if (roomParticipants.has(roomName)) {
+          roomParticipants.get(roomName).delete(participantIdentity);
+          const participantCount = roomParticipants.get(roomName).size;
+
+          // Clean up empty room
+          if (participantCount === 0) {
+            roomParticipants.delete(roomName);
+          }
+
+          console.log(`Participant ${participantIdentity} left room ${roomName}. Total participants: ${participantCount}`);
+
+          // Find consultation to get doctor and patient IDs
+          if (consultationId) {
+            const consultation = await Consultation.findByPk(consultationId);
+            if (consultation) {
+              // Notify both doctor and patient about participant count update
+              const doctorSocketId = getDoctorSocketId(consultation.doctorId);
+              const patientSocketId = getPatientSocketId(consultation.patientId);
+
+              const participantData = {
+                roomName,
+                participantCount,
+                consultationId,
+                participantLeft: participantIdentity
+              };
+
+              if (doctorSocketId) {
+                io.to(doctorSocketId).emit('PARTICIPANT_COUNT_UPDATE', participantData);
+              }
+              if (patientSocketId) {
+                io.to(patientSocketId).emit('PARTICIPANT_COUNT_UPDATE', participantData);
+              }
+            }
+          }
+        }
+      } catch (error) {
+        console.error('Error in PARTICIPANT_LEFT_ROOM:', error);
+      }
+    });
+
+    // Get current participant count for a room
+    socket.on('GET_PARTICIPANT_COUNT', async (data) => {
+      try {
+        const { roomName, consultationId } = data;
+        
+        if (!roomName) {
+          console.error('Missing roomName in GET_PARTICIPANT_COUNT');
+          return;
+        }
+
+        const participantCount = roomParticipants.has(roomName) 
+          ? roomParticipants.get(roomName).size 
+          : 0;
+
+        socket.emit('PARTICIPANT_COUNT_UPDATE', {
+          roomName,
+          participantCount,
+          consultationId
+        });
+
+        console.log(`Sent participant count for room ${roomName}: ${participantCount}`);
+      } catch (error) {
+        console.error('Error in GET_PARTICIPANT_COUNT:', error);
+      }
+    });
+
     // Handle disconnection
     socket.on('disconnect', async () => {
       try {
@@ -375,4 +504,5 @@ module.exports = {
   getPatientSocketId,
   patientSocketMap,
   doctorSocketMap,
+  roomParticipants,
 };

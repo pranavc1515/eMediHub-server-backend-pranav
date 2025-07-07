@@ -27,6 +27,34 @@ const generateToken = async (req, res) => {
       });
     }
 
+    // Get consultation data for timing information
+    let consultationData = null;
+    try {
+      const Consultation = require('../models/consultation.model');
+      const consultation = await Consultation.findOne({
+        where: {
+          roomName: roomName,
+          status: 'ongoing'
+        },
+        order: [['actualStartTime', 'DESC']]
+      });
+
+      if (consultation) {
+        consultationData = {
+          consultationId: consultation.id,
+          startTime: consultation.actualStartTime || consultation.startTime,
+          scheduledDate: consultation.scheduledDate,
+          doctorId: consultation.doctorId,
+          patientId: consultation.patientId
+        };
+        console.log(`Found consultation data for room ${roomName}:`, consultationData);
+      } else {
+        console.log(`No ongoing consultation found for room ${roomName}`);
+      }
+    } catch (consultationError) {
+      console.warn('Error fetching consultation data:', consultationError.message);
+    }
+
     const AccessToken = twilio.jwt.AccessToken;
     const VideoGrant = AccessToken.VideoGrant;
 
@@ -43,6 +71,7 @@ const generateToken = async (req, res) => {
     res.status(200).json({
       success: true,
       token: token.toJwt(),
+      consultationData: consultationData
     });
   } catch (error) {
     console.error('Error generating token:', error);
