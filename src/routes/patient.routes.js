@@ -504,4 +504,106 @@ router.get('/doctor-price/:doctorId', async (req, res) => {
   }
 });
 
+/**
+ * @swagger
+ * /api/patients/do-delete-account:
+ *   delete:
+ *     summary: Delete user account (soft delete) (Proxy to 3rd party API)
+ *     tags: [Patients]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: User account deleted successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 status:
+ *                   type: boolean
+ *                 status_code:
+ *                   type: integer
+ *                 message:
+ *                   type: string
+ *       400:
+ *         description: Bad request - invalid user ID or deletion failed
+ *       404:
+ *         description: User not found
+ *       500:
+ *         description: Server error
+ */
+router.delete('/do-delete-account', async (req, res) => {
+  try {
+    const authHeader = req.headers.authorization;
+
+    if (!authHeader) {
+      return res.status(401).json({
+        success: false,
+        message: 'Authorization header is required',
+      });
+    }
+
+    const result = await patientController.deleteUserAccount(authHeader);
+    res.json(result);
+  } catch (error) {
+    res.status(error.response?.status || 400).json({
+      success: false,
+      message: error.message,
+    });
+  }
+});
+
+/**
+ * @swagger
+ * /api/patients/settings/about:
+ *   get:
+ *     summary: Get about page content (Proxy to 3rd party API)
+ *     tags: [Patients]
+ *     responses:
+ *       200:
+ *         description: About page content retrieved successfully
+ *       400:
+ *         description: Error response from 3rd party API
+ *       500:
+ *         description: Server error
+ */
+router.get('/settings/about', async (req, res) => {
+  try {
+    const result = await patientController.getAboutPage();
+    res.json(result);
+  } catch (error) {
+    res.status(error.response?.status || 400).json({
+      success: false,
+      message: error.message,
+    });
+  }
+});
+
+/**
+ * @swagger
+ * /api/patients/settings/terms:
+ *   get:
+ *     summary: Get terms page content (Proxy to 3rd party API)
+ *     tags: [Patients]
+ *     responses:
+ *       200:
+ *         description: Terms page content retrieved successfully
+ *       400:
+ *         description: Error response from 3rd party API
+ *       500:
+ *         description: Server error
+ */
+router.get('/settings/terms', async (req, res) => {
+  try {
+    const result = await patientController.getTermsPage();
+    res.json(result);
+  } catch (error) {
+    res.status(error.response?.status || 400).json({
+      success: false,
+      message: error.message,
+    });
+  }
+});
+
 module.exports = router;

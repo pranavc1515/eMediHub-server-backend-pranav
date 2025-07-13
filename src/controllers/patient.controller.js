@@ -238,7 +238,7 @@ const getVideoConsultationPricing = async (authToken) => {
   } catch (error) {
     throw new Error(
       error.response?.data?.message ||
-        'Error fetching video consultation pricing'
+      'Error fetching video consultation pricing'
     );
   }
 };
@@ -263,6 +263,58 @@ const getDoctorPrice = async (doctorId, authToken) => {
   }
 };
 
+// Delete user account (soft delete)
+const deleteUserAccount = async (authToken) => {
+  try {
+    const response = await axios.delete(`${API_BASE_URL}/do-delete-account`, {
+      headers: {
+        Authorization: authToken,
+        Accept: 'application/json',
+      },
+    });
+
+    return response.data;
+  } catch (error) {
+    throw new Error(
+      error.response?.data?.message || 'Error deleting user account'
+    );
+  }
+};
+
+// Get about page content
+const getAboutPage = async () => {
+  try {
+    const response = await axios.get(`http://43.204.91.138:3000/settings/about`, {
+      headers: {
+        Accept: 'application/json',
+      },
+    });
+
+    return response.data;
+  } catch (error) {
+    throw new Error(
+      error.response?.data?.message || 'Error fetching about page'
+    );
+  }
+};
+
+// Get terms page content
+const getTermsPage = async () => {
+  try {
+    const response = await axios.get(`http://43.204.91.138:3000/settings/terms`, {
+      headers: {
+        Accept: 'application/json',
+      },
+    });
+
+    return response.data;
+  } catch (error) {
+    throw new Error(
+      error.response?.data?.message || 'Error fetching terms page'
+    );
+  }
+};
+
 module.exports = {
   getUserById,
   registerNewPatient,
@@ -276,4 +328,7 @@ module.exports = {
   doLogin,
   getVideoConsultationPricing,
   getDoctorPrice,
+  deleteUserAccount,
+  getAboutPage,
+  getTermsPage,
 };
