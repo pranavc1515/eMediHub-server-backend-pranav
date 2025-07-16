@@ -290,17 +290,153 @@ router.get('/profile-details', async (req, res) => {
  * @swagger
  * /api/patients/medical-details:
  *   get:
- *     summary: Get patient's medical details (Proxy to 3rd party API)
+ *     summary: Get user's latest medical details
+ *     description: |
+ *       Retrieves the most recent medical information saved by the authenticated user.
+ *       This includes all medical profile data such as allergies, blood group, 
+ *       surgery history, and family medical history.
  *     tags: [Patients]
  *     security:
  *       - bearerAuth: []
  *     responses:
  *       200:
- *         description: Success response from 3rd party API
+ *         description: Medical details retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 status:
+ *                   type: boolean
+ *                   example: true
+ *                 status_code:
+ *                   type: integer
+ *                   example: 200
+ *                 message:
+ *                   type: string
+ *                   example: "Medical details retrieved successfully"
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     id:
+ *                       type: integer
+ *                       example: 188
+ *                     user_id:
+ *                       type: integer
+ *                       example: 389
+ *                     doctor_id:
+ *                       type: integer
+ *                       nullable: true
+ *                       example: null
+ *                     uploaded_by:
+ *                       type: string
+ *                       nullable: true
+ *                       example: null
+ *                     related_user:
+ *                       type: string
+ *                       nullable: true
+ *                       example: null
+ *                     doctor_name:
+ *                       type: string
+ *                       nullable: true
+ *                       example: null
+ *                     report_date:
+ *                       type: string
+ *                       nullable: true
+ *                       example: null
+ *                     report_reason:
+ *                       type: string
+ *                       nullable: true
+ *                       example: null
+ *                     report_analysis:
+ *                       type: string
+ *                       nullable: true
+ *                       example: null
+ *                     report_pdf:
+ *                       type: string
+ *                       nullable: true
+ *                       example: null
+ *                     food_allergies:
+ *                       type: string
+ *                       example: "Peanuts, Dust"
+ *                     drug_allergies:
+ *                       type: string
+ *                       example: "Smoking"
+ *                     blood_group:
+ *                       type: string
+ *                       example: "O+"
+ *                     implants:
+ *                       type: string
+ *                       example: "Metformin"
+ *                     surgeries:
+ *                       type: string
+ *                       example: "Appendectomy"
+ *                     family_medical_history:
+ *                       type: string
+ *                       example: "Heart disease in parents"
+ *                     created_at:
+ *                       type: string
+ *                       format: date-time
+ *                       example: "2025-07-16T18:41:38.000Z"
+ *                     updated_at:
+ *                       type: string
+ *                       format: date-time
+ *                       example: "2025-07-16T18:41:38.000Z"
+ *             example:
+ *               status: true
+ *               status_code: 200
+ *               message: "Medical details retrieved successfully"
+ *               data:
+ *                 id: 188
+ *                 user_id: 389
+ *                 doctor_id: null
+ *                 uploaded_by: null
+ *                 related_user: null
+ *                 doctor_name: null
+ *                 report_date: null
+ *                 report_reason: null
+ *                 report_analysis: null
+ *                 report_pdf: null
+ *                 food_allergies: "Peanuts, Dust"
+ *                 drug_allergies: "Smoking"
+ *                 blood_group: "O+"
+ *                 implants: "Metformin"
+ *                 surgeries: "Appendectomy"
+ *                 family_medical_history: "Heart disease in parents"
+ *                 created_at: "2025-07-16T18:41:38.000Z"
+ *                 updated_at: "2025-07-16T18:41:38.000Z"
  *       401:
- *         description: Unauthorized - Missing or invalid token
- *       400:
- *         description: Error response from 3rd party API
+ *         description: Unauthorized - Invalid or missing token
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 status:
+ *                   type: boolean
+ *                   example: false
+ *                 status_code:
+ *                   type: integer
+ *                   example: 401
+ *                 message:
+ *                   type: string
+ *                   example: "Unauthorized - Invalid or missing token"
+ *       500:
+ *         description: Server error
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 status:
+ *                   type: boolean
+ *                   example: false
+ *                 status_code:
+ *                   type: integer
+ *                   example: 500
+ *                 message:
+ *                   type: string
+ *                   example: "Server error"
  */
 router.get('/medical-details', async (req, res) => {
   try {
@@ -327,7 +463,11 @@ router.get('/medical-details', async (req, res) => {
  * @swagger
  * /api/patients/medical-details:
  *   post:
- *     summary: Update patient's medical details (Proxy to 3rd party API)
+ *     summary: Save or update user medical details
+ *     description: |
+ *       Allows an authenticated user to create or update their medical profile.
+ *       This endpoint accepts various medical information including allergies, 
+ *       blood group, surgeries, and lifestyle habits.
  *     tags: [Patients]
  *     security:
  *       - bearerAuth: []
@@ -337,11 +477,182 @@ router.get('/medical-details', async (req, res) => {
  *         application/json:
  *           schema:
  *             type: object
+ *             properties:
+ *               blood_group:
+ *                 type: string
+ *                 description: Blood group of the user
+ *                 example: "O+"
+ *               food_allergies:
+ *                 type: string
+ *                 description: Food allergies information
+ *                 example: "Peanuts, Dust"
+ *               drug_allergies:
+ *                 type: string
+ *                 description: Drug allergies information
+ *                 example: "Smoking"
+ *               implants:
+ *                 type: string
+ *                 description: Information about implants
+ *                 example: "Metformin"
+ *               surgeries:
+ *                 type: string
+ *                 description: Surgery history
+ *                 example: "Appendectomy"
+ *               family_medical_history:
+ *                 type: string
+ *                 description: Family medical history
+ *                 example: "Heart disease in parents"
+ *               smoking_habits:
+ *                 type: string
+ *                 description: Smoking habits
+ *                 example: "Never"
+ *               alcohol_consumption:
+ *                 type: string
+ *                 description: Alcohol consumption habits
+ *                 example: "Occasionally"
+ *               physical_activity:
+ *                 type: string
+ *                 description: Physical activity level
+ *                 example: "Regular exercise"
+ *           examples:
+ *             complete_profile:
+ *               summary: Complete medical profile
+ *               value:
+ *                 blood_group: "O+"
+ *                 food_allergies: "Peanuts, Dust"
+ *                 drug_allergies: "Smoking"
+ *                 implants: "Metformin"
+ *                 surgeries: "Appendectomy"
+ *                 family_medical_history: "Heart disease in parents"
+ *                 smoking_habits: "Never"
+ *                 alcohol_consumption: "Occasionally"
+ *                 physical_activity: "Regular exercise"
+ *             minimal_profile:
+ *               summary: Minimal medical profile
+ *               value:
+ *                 blood_group: "A+"
+ *                 food_allergies: "None"
+ *                 drug_allergies: "None"
  *     responses:
  *       200:
- *         description: Success response from 3rd party API
- *       400:
- *         description: Error response from 3rd party API
+ *         description: Medical details updated successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 status:
+ *                   type: boolean
+ *                   example: true
+ *                 status_code:
+ *                   type: integer
+ *                   example: 200
+ *                 message:
+ *                   type: string
+ *                   example: "Medical details updated successfully"
+ *                 data:
+ *                   type: object
+ *             example:
+ *               status: true
+ *               status_code: 200
+ *               message: "Medical details updated successfully"
+ *               data: {}
+ *       201:
+ *         description: Medical details added successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 status:
+ *                   type: boolean
+ *                   example: true
+ *                 status_code:
+ *                   type: integer
+ *                   example: 201
+ *                 message:
+ *                   type: string
+ *                   example: "Medical details added successfully"
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     food_allergies:
+ *                       type: string
+ *                       example: "Peanuts, Dust"
+ *                     drug_allergies:
+ *                       type: string
+ *                       example: "Smoking"
+ *                     blood_group:
+ *                       type: string
+ *                       example: "O+"
+ *                     implants:
+ *                       type: string
+ *                       example: "Metformin"
+ *                     surgeries:
+ *                       type: string
+ *                       example: "Appendectomy"
+ *                     family_medical_history:
+ *                       type: string
+ *                       example: "Heart disease in parents"
+ *             example:
+ *               status: true
+ *               status_code: 201
+ *               message: "Medical details added successfully"
+ *               data:
+ *                 food_allergies: "Peanuts, Dust"
+ *                 drug_allergies: "Smoking"
+ *                 blood_group: "O+"
+ *                 implants: "Metformin"
+ *                 surgeries: "Appendectomy"
+ *                 family_medical_history: "Heart disease in parents"
+ *       401:
+ *         description: Unauthorized - Missing or invalid token
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 status:
+ *                   type: boolean
+ *                   example: false
+ *                 status_code:
+ *                   type: integer
+ *                   example: 401
+ *                 message:
+ *                   type: string
+ *                   example: "Unauthorized access."
+ *       404:
+ *         description: User not found
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 status:
+ *                   type: boolean
+ *                   example: false
+ *                 status_code:
+ *                   type: integer
+ *                   example: 404
+ *                 message:
+ *                   type: string
+ *                   example: "User not found"
+ *       500:
+ *         description: Server error
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 status:
+ *                   type: boolean
+ *                   example: false
+ *                 status_code:
+ *                   type: integer
+ *                   example: 500
+ *                 message:
+ *                   type: string
+ *                   example: "Server error"
  */
 router.post('/medical-details', async (req, res) => {
   try {
@@ -371,7 +682,11 @@ router.post('/medical-details', async (req, res) => {
  * @swagger
  * /api/patients/email-verify:
  *   put:
- *     summary: Verify patient's email (Proxy to 3rd party API)
+ *     summary: Verify or update user's email
+ *     description: |
+ *       Allows an authenticated user to verify their email address. If the email is new 
+ *       or not yet verified, an OTP is sent to the email for verification.
+ *       This endpoint handles both email verification and email updates.
  *     tags: [Patients]
  *     security:
  *       - bearerAuth: []
@@ -386,15 +701,124 @@ router.post('/medical-details', async (req, res) => {
  *             properties:
  *               email:
  *                 type: string
+ *                 format: email
+ *                 description: Email address to verify
+ *                 example: "user@example.com"
+ *               name:
+ *                 type: string
+ *                 description: User's name (optional)
+ *                 example: "John Doe"
+ *           examples:
+ *             with_name:
+ *               summary: Email verification with name
+ *               value:
+ *                 email: "user@example.com"
+ *                 name: "John Doe"
+ *             email_only:
+ *               summary: Email verification only
+ *               value:
+ *                 email: "newuser@example.com"
  *     responses:
  *       200:
- *         description: Success response from 3rd party API
+ *         description: OTP sent for verification or email already verified
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 status:
+ *                   type: boolean
+ *                   example: true
+ *                 status_code:
+ *                   type: integer
+ *                   example: 200
+ *                 message:
+ *                   type: string
+ *                   example: "OTP sent to email for verification"
+ *             example:
+ *               status: true
+ *               status_code: 200
+ *               message: "OTP sent to email for verification"
  *       400:
- *         description: Error response from 3rd party API
+ *         description: Email already in use by another user or missing email
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 status:
+ *                   type: boolean
+ *                   example: false
+ *                 status_code:
+ *                   type: integer
+ *                   example: 400
+ *                 message:
+ *                   type: string
+ *             examples:
+ *               email_in_use:
+ *                 summary: Email already in use
+ *                 value:
+ *                   status: false
+ *                   status_code: 400
+ *                   message: "Email is already in use by another user."
+ *               missing_email:
+ *                 summary: Missing email field
+ *                 value:
+ *                   status: false
+ *                   status_code: 400
+ *                   message: "Email is required"
+ *       401:
+ *         description: Unauthorized - Missing or invalid token
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 status:
+ *                   type: boolean
+ *                   example: false
+ *                 status_code:
+ *                   type: integer
+ *                   example: 401
+ *                 message:
+ *                   type: string
+ *                   example: "Unauthorized access."
+ *       404:
+ *         description: User not found
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 status:
+ *                   type: boolean
+ *                   example: false
+ *                 status_code:
+ *                   type: integer
+ *                   example: 404
+ *                 message:
+ *                   type: string
+ *                   example: "User not found."
+ *       500:
+ *         description: Server error
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 status:
+ *                   type: boolean
+ *                   example: false
+ *                 status_code:
+ *                   type: integer
+ *                   example: 500
+ *                 message:
+ *                   type: string
+ *                   example: "Server error"
  */
 router.put('/email-verify', async (req, res) => {
   try {
-    const { email } = req.body;
+    const { email, name } = req.body;
     const authHeader = req.headers.authorization;
 
     if (!email) {
@@ -411,7 +835,7 @@ router.put('/email-verify', async (req, res) => {
       });
     }
 
-    const result = await patientController.verifyEmail(email, authHeader);
+    const result = await patientController.verifyEmail(email, authHeader, name);
     res.json(result);
   } catch (error) {
     res.status(400).json({

@@ -165,11 +165,16 @@ const getMedicalDetails = async (authToken) => {
 };
 
 // Verify email
-const verifyEmail = async (email, authToken) => {
+const verifyEmail = async (email, authToken, name = null) => {
   try {
+    const requestBody = { email };
+    if (name) {
+      requestBody.name = name;
+    }
+
     const response = await axios.put(
       `${API_BASE_URL}/email-verify`,
-      { email },
+      requestBody,
       {
         headers: {
           'Content-Type': 'application/json',
