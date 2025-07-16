@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const { auth } = require('../middleware/auth.middleware');
 const doctorController = require('../controllers/doctor.controller');
+const vdcController = require('../controllers/doctor.vdc.controller');
 const {
   DoctorPersonal,
   DoctorProfessional,
@@ -532,11 +533,6 @@ router.put('/personal-details/:id', auth, async (req, res) => {
  *               communicationLanguages:
  *                 type: string
  *                 description: JSON string of array
- *               consultationFees:
- *                 type: number
- *               availableDays:
- *                 type: string
- *                 description: JSON string of array
  *               certificates:
  *                 type: array
  *                 items:
@@ -658,8 +654,6 @@ router.put(
         clinicName,
         yearsOfExperience,
         communicationLanguages,
-        consultationFees,
-        availableDays,
         certificatesToRemove,
       } = req.body;
 
@@ -732,7 +726,6 @@ router.put(
 
       // Parse JSON strings for arrays
       let parsedCommunicationLanguages = professional.communicationLanguages;
-      let parsedAvailableDays = professional.availableDays;
 
       if (
         communicationLanguages &&
@@ -742,14 +735,6 @@ router.put(
           parsedCommunicationLanguages = JSON.parse(communicationLanguages);
         } catch (e) {
           parsedCommunicationLanguages = [communicationLanguages];
-        }
-      }
-
-      if (availableDays && typeof availableDays === 'string') {
-        try {
-          parsedAvailableDays = JSON.parse(availableDays);
-        } catch (e) {
-          parsedAvailableDays = [availableDays];
         }
       }
 
@@ -768,10 +753,6 @@ router.put(
           : professional.yearsOfExperience,
         communicationLanguages:
           parsedCommunicationLanguages || professional.communicationLanguages,
-        consultationFees: consultationFees
-          ? parseFloat(consultationFees)
-          : professional.consultationFees,
-        availableDays: parsedAvailableDays || professional.availableDays,
         status: 'Verified',
       });
 
@@ -967,25 +948,32 @@ router.get('/profile', auth, async (req, res) => {
     // If requesting other doctor's profile, only return public information
     if (!isOwnProfile) {
       // Remove sensitive data like certificates for other doctors' profiles
+      const professionalData = doctor.DoctorProfessional
+        ? {
+          qualification: doctor.DoctorProfessional.qualification,
+          specialization: doctor.DoctorProfessional.specialization,
+          clinicName: doctor.DoctorProfessional.clinicName,
+          yearsOfExperience: doctor.DoctorProfessional.yearsOfExperience,
+          communicationLanguages:
+            doctor.DoctorProfessional.communicationLanguages,
+          status: doctor.DoctorProfessional.status,
+          vdcEnabled: doctor.DoctorProfessional.vdcEnabled,
+          // Only include VDC-related fields if VDC is enabled
+          ...(doctor.DoctorProfessional.vdcEnabled && {
+            consultationFees: doctor.DoctorProfessional.consultationFees,
+            availableDays: doctor.DoctorProfessional.availableDays,
+            availableTimeSlots: doctor.DoctorProfessional.availableTimeSlots,
+          }),
+          // Exclude certificates, registrationNumber, etc. for privacy
+        }
+        : null;
+
       const publicProfile = {
         id: doctor.id,
         fullName: doctor.fullName,
         gender: doctor.gender,
         profilePhoto: doctor.profilePhoto,
-        DoctorProfessional: doctor.DoctorProfessional
-          ? {
-              qualification: doctor.DoctorProfessional.qualification,
-              specialization: doctor.DoctorProfessional.specialization,
-              clinicName: doctor.DoctorProfessional.clinicName,
-              yearsOfExperience: doctor.DoctorProfessional.yearsOfExperience,
-              consultationFees: doctor.DoctorProfessional.consultationFees,
-              availableDays: doctor.DoctorProfessional.availableDays,
-              communicationLanguages:
-                doctor.DoctorProfessional.communicationLanguages,
-              status: doctor.DoctorProfessional.status,
-              // Exclude certificates, registrationNumber, etc. for privacy
-            }
-          : null,
+        DoctorProfessional: professionalData,
       };
 
       return res.json({
@@ -1410,5 +1398,195 @@ router.get('/professional-details/:id/certificates', auth, async (req, res) => {
     });
   }
 });
+
+// =============================================
+// VDC (Video/Digital Consultation) Routes
+// =============================================
+
+/**
+ * @swagger
+ * /api/doctors/vdc-settings:
+ *   get:
+ *     summary: Get doctor's VDC (Video/Digital Consultation) settings
+ *     tags: [Doctors - VDC]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: VDC settings retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     vdcEnabled:
+ *                       type: boolean
+ *                       description: Whether VDC is enabled for this doctor
+ *                       example: true
+ *                     consultationFees:
+ *                       type: number
+ *                       format: float
+ *                       description: Consultation fee in local currency
+ *                       example: 500.00
+ *                     availableDays:
+ *                       type: array
+ *                       items:
+ *                         type: string
+ *                       description: Days of the week when doctor is available
+ *                       example: ["monday", "tuesday", "wednesday", "thursday", "friday"]
+ *                     availableTimeSlots:
+ *                       type: object
+ *                       description: Time slots for each day
+ *                       example: {"monday": {"start": "09:00", "end": "17:00"}, "tuesday": {"start": "10:00", "end": "18:00"}}
+ *       401:
+ *         description: Unauthorized
+ *       404:
+ *         description: Doctor professional details not found
+ *   put:
+ *     summary: Update doctor's VDC (Video/Digital Consultation) settings
+ *     tags: [Doctors - VDC]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               vdcEnabled:
+ *                 type: boolean
+ *                 description: Enable or disable VDC for this doctor
+ *                 example: true
+ *               consultationFees:
+ *                 type: number
+ *                 format: float
+ *                 minimum: 0
+ *                 description: Consultation fee in local currency (required if enabling VDC)
+ *                 example: 500.00
+ *               availableDays:
+ *                 type: array
+ *                 items:
+ *                   type: string
+ *                   enum: ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]
+ *                 description: Days of the week when doctor is available for VDC
+ *                 example: ["monday", "tuesday", "wednesday", "thursday", "friday"]
+ *               availableTimeSlots:
+ *                 type: object
+ *                 description: Time slots for each available day
+ *                 example: {"monday": {"start": "09:00", "end": "17:00"}, "tuesday": {"start": "10:00", "end": "18:00"}}
+ *             anyOf:
+ *               - required: ["vdcEnabled"]
+ *               - required: ["consultationFees"]
+ *               - required: ["availableDays"]
+ *               - required: ["availableTimeSlots"]
+ *     responses:
+ *       200:
+ *         description: VDC settings updated successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: "VDC settings updated successfully"
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     vdcEnabled:
+ *                       type: boolean
+ *                       example: true
+ *                     consultationFees:
+ *                       type: number
+ *                       format: float
+ *                       example: 500.00
+ *                     availableDays:
+ *                       type: array
+ *                       items:
+ *                         type: string
+ *                       example: ["monday", "tuesday", "wednesday", "thursday", "friday"]
+ *                     availableTimeSlots:
+ *                       type: object
+ *                       example: {"monday": {"start": "09:00", "end": "17:00"}}
+ *       400:
+ *         description: Bad request - Invalid data or validation error
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: false
+ *                 message:
+ *                   type: string
+ *                   example: "Consultation fees cannot be negative"
+ *                 error:
+ *                   type: string
+ *       401:
+ *         description: Unauthorized
+ *       404:
+ *         description: Doctor not found
+ */
+/**
+ * @swagger
+ * /api/doctors/vdc-status:
+ *   get:
+ *     summary: Check if doctor has opted for VDC (Video/Digital Consultation) services
+ *     tags: [Doctors - VDC]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: VDC status retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     vdcEnabled:
+ *                       type: boolean
+ *                       description: Whether VDC is enabled for this doctor
+ *                       example: true
+ *                     hasOptedVDC:
+ *                       type: boolean
+ *                       description: Same as vdcEnabled (for clarity)
+ *                       example: true
+ *       401:
+ *         description: Unauthorized
+ *       404:
+ *         description: Doctor professional details not found
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: false
+ *                 message:
+ *                   type: string
+ *                   example: "Doctor professional details not found"
+ */
+router.get('/vdc-status', auth, vdcController.checkVDCStatus);
+
+router.get('/vdc-settings', auth, vdcController.getVDCSettings);
+router.put('/vdc-settings', auth, vdcController.updateVDCSettings);
 
 module.exports = router;

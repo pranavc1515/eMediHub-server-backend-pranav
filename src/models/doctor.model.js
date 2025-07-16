@@ -158,6 +158,12 @@ const DoctorProfessional = sequelize.define(
       type: DataTypes.JSON,
       defaultValue: {},
     },
+    vdcEnabled: {
+      type: DataTypes.BOOLEAN,
+      allowNull: false,
+      defaultValue: false,
+      comment: 'Whether doctor has opted for Video/Digital Consultation services',
+    },
   },
   {
     tableName: 'doctor_professional',

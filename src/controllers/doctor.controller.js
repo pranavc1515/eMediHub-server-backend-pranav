@@ -155,10 +155,10 @@ const checkDoctorExists = async (phoneNumber) => {
       exists: !!doctor,
       data: doctor
         ? {
-            id: doctor.id,
-            phoneNumber: doctor.phoneNumber,
-            isProfileComplete: !!doctor.fullName,
-          }
+          id: doctor.id,
+          phoneNumber: doctor.phoneNumber,
+          isProfileComplete: !!doctor.fullName,
+        }
         : null,
     };
   } catch (error) {
@@ -428,8 +428,20 @@ const getAllDoctors = async (
       );
     }
 
+    // Filter VDC-related fields based on vdcEnabled status
+    const filteredDoctors = doctors.map(doctor => {
+      const doctorData = doctor.toJSON();
+      if (doctorData.DoctorProfessional && !doctorData.DoctorProfessional.vdcEnabled) {
+        // Remove VDC-related fields if VDC is not enabled
+        delete doctorData.DoctorProfessional.consultationFees;
+        delete doctorData.DoctorProfessional.availableDays;
+        delete doctorData.DoctorProfessional.availableTimeSlots;
+      }
+      return doctorData;
+    });
+
     return {
-      doctors,
+      doctors: filteredDoctors,
       totalCount,
       totalPages,
       currentPage: validatedPage,
@@ -492,8 +504,20 @@ const getAvailableDoctors = async (
       order: [['fullName', 'ASC']],
     });
 
+    // Filter VDC-related fields based on vdcEnabled status
+    const filteredDoctors = doctors.map(doctor => {
+      const doctorData = doctor.toJSON();
+      if (doctorData.DoctorProfessional && !doctorData.DoctorProfessional.vdcEnabled) {
+        // Remove VDC-related fields if VDC is not enabled
+        delete doctorData.DoctorProfessional.consultationFees;
+        delete doctorData.DoctorProfessional.availableDays;
+        delete doctorData.DoctorProfessional.availableTimeSlots;
+      }
+      return doctorData;
+    });
+
     return {
-      doctors,
+      doctors: filteredDoctors,
       totalCount,
       totalPages: Math.ceil(totalCount / limit),
       currentPage: page,
