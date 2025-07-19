@@ -11,6 +11,8 @@ const {
   upload,
   uploadToS3,
   uploadDoctorDocumentToS3,
+  uploadDoctorProfilePhotoToS3,
+  uploadProfilePhoto,
   deleteFromS3,
 } = require('../utils/fileUpload');
 
@@ -402,7 +404,7 @@ router.post('/checkDoctorExists', async (req, res) => {
  * @swagger
  * /api/doctors/personal-details/{id}:
  *   put:
- *     summary: Update doctor's personal details
+ *     summary: Update doctor's personal details (supports profile photo upload)
  *     tags: [Doctors]
  *     security:
  *       - bearerAuth: []
@@ -416,26 +418,173 @@ router.post('/checkDoctorExists', async (req, res) => {
  *     requestBody:
  *       required: true
  *       content:
+ *         multipart/form-data:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               fullName:
+ *                 type: string
+ *                 description: Doctor's full name
+ *                 example: "Dr. John Smith"
+ *               email:
+ *                 type: string
+ *                 description: Doctor's email address
+ *                 example: "doctor@example.com"
+ *               gender:
+ *                 type: string
+ *                 enum: [Male, Female, Other]
+ *                 description: Doctor's gender
+ *                 example: "Male"
+ *               dob:
+ *                 type: string
+ *                 format: date
+ *                 description: Doctor's date of birth (YYYY-MM-DD)
+ *                 example: "1980-01-15"
+ *               profilePhoto:
+ *                 type: string
+ *                 format: binary
+ *                 description: Profile photo file (JPG, JPEG, PNG only, max 5MB)
+ *           encoding:
+ *             profilePhoto:
+ *               contentType: image/png, image/jpeg, image/jpg
  *         application/json:
  *           schema:
  *             type: object
  *             properties:
  *               fullName:
  *                 type: string
+ *                 description: Doctor's full name
+ *                 example: "Dr. John Smith"
  *               email:
  *                 type: string
+ *                 description: Doctor's email address
+ *                 example: "doctor@example.com"
  *               gender:
  *                 type: string
+ *                 enum: [Male, Female, Other]
+ *                 description: Doctor's gender
+ *                 example: "Male"
  *               dob:
  *                 type: string
+ *                 format: date
+ *                 description: Doctor's date of birth (YYYY-MM-DD)
+ *                 example: "1980-01-15"
+ *             description: Use this for text-only updates (no file upload)
  *     responses:
  *       200:
  *         description: Personal details updated successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: "Personal details updated successfully"
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     id:
+ *                       type: integer
+ *                       example: 1
+ *                     fullName:
+ *                       type: string
+ *                       example: "Dr. John Smith"
+ *                     phoneNumber:
+ *                       type: string
+ *                       example: "+918805047968"
+ *                     email:
+ *                       type: string
+ *                       example: "doctor@example.com"
+ *                     gender:
+ *                       type: string
+ *                       example: "Male"
+ *                     dob:
+ *                       type: string
+ *                       format: date
+ *                       example: "1980-01-15"
+ *                     profilePhoto:
+ *                       type: string
+ *                       nullable: true
+ *                       description: URL of the uploaded profile photo
+ *                       example: "https://s3.amazonaws.com/emedihub-prescriptions/doctors/1/profile/uuid.jpg"
+ *                     status:
+ *                       type: string
+ *                       example: "Active"
+ *                     emailVerified:
+ *                       type: boolean
+ *                       example: true
+ *                     isOnline:
+ *                       type: string
+ *                       example: "available"
+ *                     lastSeen:
+ *                       type: string
+ *                       format: date-time
+ *                       example: "2025-01-20T10:30:00Z"
+ *       400:
+ *         description: Bad request - Invalid data or file upload error
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: false
+ *                 message:
+ *                   type: string
+ *                   example: "Failed to upload profile photo"
+ *                 error:
+ *                   type: string
+ *                   example: "Invalid file type. Only JPG, JPEG, and PNG files are allowed for profile photos."
+ *       401:
+ *         description: Unauthorized - Missing or invalid token
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: false
+ *                 message:
+ *                   type: string
+ *                   example: "Authentication required"
+ *       403:
+ *         description: Forbidden - Cannot update other doctor's profile
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: false
+ *                 message:
+ *                   type: string
+ *                   example: "You can only update your own profile"
+ *       404:
+ *         description: Doctor not found
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: false
+ *                 message:
+ *                   type: string
+ *                   example: "Doctor not found"
  */
-router.put('/personal-details/:id', auth, async (req, res) => {
+router.put('/personal-details/:id', auth, uploadProfilePhoto.single('profilePhoto'), async (req, res) => {
   try {
     const { fullName, email, gender, dob } = req.body;
     const doctorId = parseInt(req.params.id);
+    const file = req.file;
 
     // Check if the authenticated user is a doctor
     if (!req.user || !req.user.id) {
@@ -463,18 +612,60 @@ router.put('/personal-details/:id', auth, async (req, res) => {
       });
     }
 
+    let profilePhotoUrl = doctor.profilePhoto;
+
+    // Handle profile photo upload if file is provided
+    if (file) {
+      // Delete old profile photo from S3 if it exists
+      if (doctor.profilePhoto) {
+        try {
+          // Extract key from URL to delete from S3
+          const oldPhotoKey = doctor.profilePhoto.split('/').slice(-3).join('/');
+          await deleteFromS3(oldPhotoKey);
+        } catch (deleteError) {
+          console.warn('Could not delete old profile photo:', deleteError.message);
+        }
+      }
+
+      // Upload new profile photo to S3
+      const uploadResult = await uploadDoctorProfilePhotoToS3(file, doctorId);
+
+      if (!uploadResult.success) {
+        return res.status(400).json({
+          success: false,
+          message: 'Failed to upload profile photo',
+          error: uploadResult.error,
+        });
+      }
+
+      profilePhotoUrl = uploadResult.fileUrl;
+    }
+
     // Update doctor personal details
     const updatedDoctor = await doctor.update({
       fullName: fullName || doctor.fullName,
       email: email || doctor.email,
       gender: gender || doctor.gender,
       dob: dob || doctor.dob,
+      profilePhoto: profilePhotoUrl,
     });
 
     res.json({
       success: true,
       message: 'Personal details updated successfully',
-      data: updatedDoctor,
+      data: {
+        id: updatedDoctor.id,
+        fullName: updatedDoctor.fullName,
+        phoneNumber: updatedDoctor.phoneNumber,
+        email: updatedDoctor.email,
+        gender: updatedDoctor.gender,
+        dob: updatedDoctor.dob,
+        profilePhoto: updatedDoctor.profilePhoto,
+        status: updatedDoctor.status,
+        emailVerified: updatedDoctor.emailVerified,
+        isOnline: updatedDoctor.isOnline,
+        lastSeen: updatedDoctor.lastSeen,
+      },
     });
   } catch (error) {
     console.error('Error updating personal details:', error);
@@ -1099,12 +1290,168 @@ router.put('/verify-email', auth, async (req, res) => {
  *         name: onlyAvailable
  *         schema:
  *           type: boolean
- *         description: Filter only available doctors
+ *         description: Filter only available doctors (true = available, false = offline)
  *     responses:
  *       200:
  *         description: List of doctors retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 count:
+ *                   type: integer
+ *                   description: Total number of doctors matching criteria
+ *                   example: 10
+ *                 totalPages:
+ *                   type: integer
+ *                   description: Total number of pages
+ *                   example: 2
+ *                 currentPage:
+ *                   type: integer
+ *                   description: Current page number
+ *                   example: 1
+ *                 pageSize:
+ *                   type: integer
+ *                   description: Number of records per page
+ *                   example: 15
+ *                 data:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                     properties:
+ *                       id:
+ *                         type: integer
+ *                         description: Doctor's unique ID
+ *                         example: 1
+ *                       fullName:
+ *                         type: string
+ *                         description: Doctor's full name
+ *                         example: "Dr. John Smith"
+ *                       phoneNumber:
+ *                         type: string
+ *                         description: Doctor's phone number
+ *                         example: "+918805047968"
+ *                       email:
+ *                         type: string
+ *                         description: Doctor's email address
+ *                         example: "doctor@example.com"
+ *                       gender:
+ *                         type: string
+ *                         enum: [Male, Female, Other]
+ *                         example: "Male"
+ *                       dob:
+ *                         type: string
+ *                         format: date
+ *                         description: Doctor's date of birth
+ *                         example: "1980-01-15"
+ *                       status:
+ *                         type: string
+ *                         enum: [Active, Inactive]
+ *                         example: "Active"
+ *                       emailVerified:
+ *                         type: boolean
+ *                         example: true
+ *                       profilePhoto:
+ *                         type: string
+ *                         nullable: true
+ *                         description: URL of doctor's profile photo
+ *                         example: "https://s3.amazonaws.com/bucket/doctors/1/profile/photo.jpg"
+ *                       isOnline:
+ *                         type: string
+ *                         enum: [available, offline]
+ *                         description: Doctor's current availability status
+ *                         example: "available"
+ *                       lastSeen:
+ *                         type: string
+ *                         format: date-time
+ *                         description: Last time doctor was seen online
+ *                         example: "2025-01-20T10:30:00Z"
+ *                       isVerified:
+ *                         type: boolean
+ *                         description: Whether admin has verified this doctor
+ *                         example: true
+ *                       DoctorProfessional:
+ *                         type: object
+ *                         nullable: true
+ *                         description: Professional details (only for verified doctors)
+ *                         properties:
+ *                           qualification:
+ *                             type: string
+ *                             example: "MBBS, MD"
+ *                           specialization:
+ *                             type: string
+ *                             example: "Cardiology"
+ *                           registrationNumber:
+ *                             type: string
+ *                             example: "MED12345"
+ *                           registrationState:
+ *                             type: string
+ *                             example: "Maharashtra"
+ *                           expiryDate:
+ *                             type: string
+ *                             format: date
+ *                             example: "2025-12-31"
+ *                           certificates:
+ *                             type: array
+ *                             description: Array of certificate objects
+ *                             items:
+ *                               type: object
+ *                           clinicName:
+ *                             type: string
+ *                             example: "City Medical Center"
+ *                           status:
+ *                             type: string
+ *                             enum: [Verified, Unverified, Pending Verification]
+ *                             example: "Verified"
+ *                           yearsOfExperience:
+ *                             type: integer
+ *                             example: 10
+ *                           communicationLanguages:
+ *                             type: array
+ *                             items:
+ *                               type: string
+ *                             example: ["English", "Hindi"]
+ *                           vdcEnabled:
+ *                             type: boolean
+ *                             description: Whether doctor has enabled video/digital consultation
+ *                             example: true
+ *                           consultationFees:
+ *                             type: number
+ *                             format: decimal
+ *                             nullable: true
+ *                             description: Consultation fees (only shown if VDC is enabled)
+ *                             example: 500.00
+ *                           availableDays:
+ *                             type: array
+ *                             nullable: true
+ *                             description: Available days for consultation (only shown if VDC is enabled)
+ *                             items:
+ *                               type: string
+ *                             example: ["monday", "tuesday", "wednesday"]
+ *                           availableTimeSlots:
+ *                             type: object
+ *                             nullable: true
+ *                             description: Available time slots (only shown if VDC is enabled)
+ *                             example: {"monday": {"start": "09:00", "end": "17:00"}}
  *       400:
  *         description: Error fetching doctors
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: false
+ *                 message:
+ *                   type: string
+ *                   example: "Error fetching doctors"
+ *                 error:
+ *                   type: string
  */
 router.get('/', async (req, res) => {
   try {
