@@ -120,25 +120,65 @@ const getPatientDataForDisplay = async (
           `Failed to fetch family member data for patient ${patientId} under user ${userId}:`,
           familyError.message
         );
-        throw familyError; // Don't fall through for family members
+        // Try to get data from PatientQueue before giving up
+        const queueData = await PatientQueue.findOne({
+          where: {
+            patientId: parseInt(patientId),
+          },
+          order: [['createdAt', 'DESC']], // Get most recent entry
+        });
+        
+        if (queueData && queueData.patientName) {
+          console.log(`Found patient data in queue for ${patientId}`);
+          return {
+            name: queueData.patientName,
+            phone: queueData.patientPhone || '',
+            email: '',
+          };
+        }
+        throw familyError;
       }
     }
 
     // If userId and patientId are same or userId not provided, use external patient detail
-    console.log(`Fetching direct patient data for patient ${patientId}`);
-    const patientData = await validatePatientExternally(
-      patientId,
-      userId,
-      authToken
-    );
-    return {
-      name: patientData.name,
-      phone: patientData.phone,
-      email: patientData.email,
-    };
+    try {
+      console.log(`Fetching direct patient data for patient ${patientId}`);
+      const patientData = await validatePatientExternally(
+        patientId,
+        userId,
+        authToken
+      );
+      return {
+        name: patientData.name,
+        phone: patientData.phone,
+        email: patientData.email,
+      };
+    } catch (externalError) {
+      console.warn(
+        `Failed to fetch external patient data for ${patientId}:`,
+        externalError.message
+      );
+      // Try to get data from PatientQueue as fallback
+      const queueData = await PatientQueue.findOne({
+        where: {
+          patientId: parseInt(patientId),
+        },
+        order: [['createdAt', 'DESC']], // Get most recent entry
+      });
+      
+      if (queueData && queueData.patientName) {
+        console.log(`Found patient data in queue for ${patientId}`);
+        return {
+          name: queueData.patientName,
+          phone: queueData.patientPhone || '',
+          email: '',
+        };
+      }
+      throw externalError;
+    }
   } catch (error) {
     console.warn(
-      `Failed to fetch patient data for ${patientId}:`,
+      `Failed to fetch patient data for ${patientId} from all sources:`,
       error.message
     );
     return {
@@ -845,13 +885,14 @@ const getDoctorConsultationHistory = async (req, res) => {
   }
 };
 
-// Get consultation history for a patient
+// Get consultation history for a patient and their family members
 const getPatientConsultationHistory = async (req, res) => {
   try {
     const { patientId } = req.params;
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 15;
     const offset = (page - 1) * limit;
+    const authToken = req.header('Authorization')?.replace('Bearer ', '');
 
     if (!patientId) {
       return res.status(400).json({
@@ -860,18 +901,62 @@ const getPatientConsultationHistory = async (req, res) => {
       });
     }
 
-    // Total count
+    // Get family tree data to find all family member IDs
+    const { getFamilyTreeData } = require('./family.controller');
+    let familyMemberIds = [parseInt(patientId)]; // Start with the patient's own ID
+
+    try {
+      console.log('Fetching family tree data for patient:', patientId);
+      const familyTreeResponse = await getFamilyTreeData(patientId, authToken);
+      
+      if (familyTreeResponse?.data?.familyTree) {
+        // Helper function to extract IDs from family tree
+        const extractIds = (members) => {
+          let ids = [];
+          for (const member of members) {
+            if (member.id) {
+              ids.push(parseInt(member.id));
+            }
+            if (member.children && member.children.length > 0) {
+              ids = ids.concat(extractIds(member.children));
+            }
+            if (member.relatives && member.relatives.length > 0) {
+              ids = ids.concat(extractIds(member.relatives));
+            }
+          }
+          return ids;
+        };
+
+        // Extract all family member IDs
+        const familyIds = extractIds(familyTreeResponse.data.familyTree);
+        familyMemberIds = [...new Set([...familyMemberIds, ...familyIds])]; // Remove duplicates
+        console.log('Found family member IDs:', familyMemberIds);
+      }
+    } catch (familyError) {
+      console.warn('Failed to fetch family tree data:', familyError.message);
+      // Continue with just the patient's ID if family tree fetch fails
+    }
+
+    // Total count including family members
     const totalCount = await Consultation.count({
-      where: { patientId },
+      where: {
+        patientId: {
+          [Op.in]: familyMemberIds
+        }
+      }
     });
 
-    // Fetch consultations with doctor info
+    // Fetch consultations with doctor info for patient and family members
     const consultations = await Consultation.findAll({
-      where: { patientId },
+      where: {
+        patientId: {
+          [Op.in]: familyMemberIds
+        }
+      },
       include: [
         {
           model: DoctorPersonal,
-          as: 'doctor', // Only if you aliased it like that, otherwise remove `as`
+          as: 'doctor',
           attributes: ['id', 'fullName', 'email', 'profilePhoto', 'isOnline'],
           include: [
             {
@@ -879,23 +964,51 @@ const getPatientConsultationHistory = async (req, res) => {
               attributes: ['specialization', 'yearsOfExperience'],
             },
           ],
-        },
+        }
       ],
       order: [['createdAt', 'DESC']],
       offset,
       limit,
     });
 
+    // Enhance consultations with patient details
+    const enhancedConsultations = await Promise.all(
+      consultations.map(async (consultation) => {
+        const consultationData = consultation.toJSON();
+        try {
+          // Get patient data for each consultation
+          const patientData = await getPatientDataForDisplay(
+            consultationData.patientId,
+            patientId, // Original patient ID as userId
+            authToken
+          );
+
+          // Add relationship info
+          const isMainPatient = parseInt(consultationData.patientId) === parseInt(patientId);
+          return {
+            ...consultationData,
+            patient: {
+              ...patientData,
+              relationship: isMainPatient ? 'Self' : 'Family Member'
+            }
+          };
+        } catch (error) {
+          console.warn(`Failed to get patient data for consultation ${consultation.id}:`, error.message);
+          return consultationData;
+        }
+      })
+    );
+
     res.status(200).json({
       success: true,
-      consultations,
+      consultations: enhancedConsultations,
       totalCount,
       totalPages: Math.ceil(totalCount / limit),
       currentPage: page,
       pageSize: limit,
     });
   } catch (error) {
-    console.error('Error:', error);
+    console.error('Error fetching consultation history:', error);
     res.status(500).json({
       success: false,
       message: 'Error fetching patient consultation history',
