@@ -6,7 +6,7 @@ const { Op } = require('sequelize');
 // Book a consultation with a doctor
 const bookConsultation = async (req, res) => {
   try {
-    const { doctorId, scheduledDate, startTime, endTime, notes } = req.body;
+    const { doctorId, scheduledDate, startTime, endTime, notes, paymentId } = req.body;
     const patientId = req.user.id;
 
     // Validate required fields
@@ -29,7 +29,7 @@ const bookConsultation = async (req, res) => {
     // Generate a unique room name for the video consultation
     const roomName = `consultation-${uuidv4()}`;
 
-    // Create consultation
+    // Create consultation with payment_id if provided
     const consultation = await Consultation.create({
       patientId,
       doctorId,
@@ -39,7 +39,8 @@ const bookConsultation = async (req, res) => {
       status: 'scheduled',
       consultationType: 'video',
       roomName,
-      notes
+      notes,
+      paymentId: paymentId || null  // Store payment ID if provided
     });
 
     res.status(201).json({
@@ -61,7 +62,7 @@ const getUpcomingConsultations = async (req, res) => {
   try {
     const patientId = req.user.id;
     const currentDate = new Date();
-    
+
     const consultations = await Consultation.findAll({
       where: {
         patientId,
@@ -115,7 +116,7 @@ const getConsultationHistory = async (req, res) => {
     const patientId = req.user.id;
     const { page = 1, limit = 10 } = req.query;
     const offset = (page - 1) * limit;
-    
+
     const { count, rows: consultations } = await Consultation.findAndCountAll({
       where: {
         patientId,
@@ -158,7 +159,7 @@ const getConsultationDetails = async (req, res) => {
   try {
     const patientId = req.user.id;
     const { id } = req.params;
-    
+
     const consultation = await Consultation.findOne({
       where: {
         id,
@@ -199,7 +200,7 @@ const cancelConsultation = async (req, res) => {
     const patientId = req.user.id;
     const { id } = req.params;
     const { cancelReason } = req.body;
-    
+
     const consultation = await Consultation.findOne({
       where: {
         id,

@@ -49,6 +49,10 @@ const useAuth = process.env.NODE_ENV === 'production' ? authenticateToken : (req
  *               notes:
  *                 type: string
  *                 description: Additional notes for the consultation
+ *               paymentId:
+ *                 type: string
+ *                 description: Payment ID from the payment microservice (e.g., Razorpay order_id or payment_id)
+ *                 example: "order_QuqV1mRT1YoCB4"
  *     responses:
  *       201:
  *         description: Consultation booked successfully

@@ -116,7 +116,7 @@ app.use('/api/doctors', doctorRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/video', videoRoutes);
 app.use('/api/consultation', consultationRoutes);
-app.use('/api/payment', paymentRoutes);
+app.use('/api/payments', paymentRoutes);
 app.use('/api/prescriptions', prescriptionRoutes);
 app.use('/api/patientQueue', patientQueueRoutes);
 app.use('/api/reports', reportsRoutes);

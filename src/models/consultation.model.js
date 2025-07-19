@@ -107,6 +107,11 @@ const Consultation = sequelize.define(
       type: DataTypes.TEXT,
       allowNull: true,
     },
+    paymentId: {
+      type: DataTypes.STRING,
+      allowNull: true,
+      comment: 'Payment ID from external payment microservice (e.g., Razorpay order_id or payment_id)',
+    },
   },
   {
     tableName: 'consultation',

@@ -1,86 +1,106 @@
-const Razorpay = require('razorpay');
-const crypto = require('crypto');
+const axios = require('axios');
 
-// Initialize Razorpay instance
-const razorpay = new Razorpay({
-    key_id: process.env.RAZORPAY_KEY_ID,
-    key_secret: process.env.RAZORPAY_KEY_SECRET
-});
+// External payment microservice URL
+const PAYMENT_MICROSERVICE_URL = process.env.PAYMENT_MICROSERVICE_URL || 'http://43.204.91.138:3000';
 
-// Create a new payment order
-exports.createOrder = async (req, res) => {
+/**
+ * Proxy function to forward requests to external payment microservice
+ */
+const proxyToPaymentService = async (req, res, method, endpoint, data = null) => {
     try {
-        const { amount, currency = 'INR' } = req.body;
-
-        const options = {
-            amount: amount * 100, // Razorpay expects amount in paise
-            currency,
-            receipt: `receipt_${Date.now()}`,
+        const config = {
+            method,
+            url: `${PAYMENT_MICROSERVICE_URL}${endpoint}`,
+            headers: {
+                'Content-Type': 'application/json',
+                // Forward authorization header if present
+                ...(req.headers.authorization && { 'Authorization': req.headers.authorization }),
+            },
         };
 
-        const order = await razorpay.orders.create(options);
-        res.json({
-            success: true,
-            order
-        });
+        if (data) {
+            config.data = data;
+        }
+
+        const response = await axios(config);
+        res.status(response.status).json(response.data);
     } catch (error) {
-        console.error('Error creating order:', error);
-        res.status(500).json({
-            success: false,
-            message: 'Error creating payment order'
-        });
-    }
-};
+        console.error(`Error proxying to payment service: ${error.message}`);
 
-// Verify payment signature
-exports.verifyPayment = async (req, res) => {
-    try {
-        const {
-            razorpay_order_id,
-            razorpay_payment_id,
-            razorpay_signature
-        } = req.body;
-
-        const sign = razorpay_order_id + '|' + razorpay_payment_id;
-        const expectedSign = crypto
-            .createHmac('sha256', process.env.RAZORPAY_KEY_SECRET)
-            .update(sign)
-            .digest('hex');
-
-        if (razorpay_signature === expectedSign) {
-            res.json({
-                success: true,
-                message: 'Payment verified successfully'
-            });
+        if (error.response) {
+            // Forward error response from payment microservice
+            res.status(error.response.status).json(error.response.data);
         } else {
-            res.status(400).json({
+            // Network or other error
+            res.status(500).json({
                 success: false,
-                message: 'Invalid payment signature'
+                message: 'Payment service unavailable',
+                error: 'Unable to connect to payment microservice'
             });
         }
-    } catch (error) {
-        console.error('Error verifying payment:', error);
-        res.status(500).json({
-            success: false,
-            message: 'Error verifying payment'
-        });
     }
 };
 
-// Get payment details
-exports.getPaymentDetails = async (req, res) => {
-    try {
-        const { paymentId } = req.params;
-        const payment = await razorpay.payments.fetch(paymentId);
-        res.json({
-            success: true,
-            payment
-        });
-    } catch (error) {
-        console.error('Error fetching payment details:', error);
-        res.status(500).json({
-            success: false,
-            message: 'Error fetching payment details'
-        });
-    }
+/**
+ * Initiate a payment
+ * POST /payments/initiate
+ */
+exports.initiatePayment = async (req, res) => {
+    await proxyToPaymentService(req, res, 'POST', '/payments/initiate', req.body);
 };
+
+/**
+ * Verify Razorpay payment
+ * POST /payments/verify-payment
+ */
+exports.verifyPayment = async (req, res) => {
+    await proxyToPaymentService(req, res, 'POST', '/payments/verify-payment', req.body);
+};
+
+/**
+ * Get payment status by payment ID
+ * GET /payments/status/:payment_id
+ */
+exports.getPaymentStatus = async (req, res) => {
+    const { payment_id } = req.params;
+    await proxyToPaymentService(req, res, 'GET', `/payments/status/${payment_id}`);
+};
+
+/**
+ * Release payment to doctor after verification
+ * POST /payments/split/:payment_id
+ */
+exports.splitPayment = async (req, res) => {
+    const { payment_id } = req.params;
+    await proxyToPaymentService(req, res, 'POST', `/payments/split/${payment_id}`);
+};
+
+/**
+ * Get transfer status by transfer ID
+ * GET /payments/transfer/:transfer_id
+ */
+exports.getTransferStatus = async (req, res) => {
+    const { transfer_id } = req.params;
+    await proxyToPaymentService(req, res, 'GET', `/payments/transfer/${transfer_id}`);
+};
+
+/**
+ * Get total transfer amount for linked account
+ * GET /payments/linked-account/total-transfer
+ */
+exports.getTotalTransfer = async (req, res) => {
+    await proxyToPaymentService(req, res, 'GET', '/payments/linked-account/total-transfer');
+};
+
+/**
+ * Request refund and reverse transfer
+ * POST /payments/refund/:payment_id
+ */
+exports.refundPayment = async (req, res) => {
+    const { payment_id } = req.params;
+    await proxyToPaymentService(req, res, 'POST', `/payments/refund/${payment_id}`);
+};
+
+// Legacy endpoints for backward compatibility (deprecated)
+exports.createOrder = exports.initiatePayment;
+exports.getPaymentDetails = exports.getPaymentStatus;
