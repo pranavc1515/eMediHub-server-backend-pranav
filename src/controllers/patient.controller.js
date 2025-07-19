@@ -320,6 +320,29 @@ const getTermsPage = async () => {
   }
 };
 
+// Update user's preferred language
+const updateUserLanguage = async (language, authToken) => {
+  try {
+    const response = await axios.post(
+      `${API_BASE_URL}/language`,
+      { language },
+      {
+        headers: {
+          Authorization: authToken,
+          'Content-Type': 'application/json',
+          Accept: 'application/json',
+        },
+      }
+    );
+
+    return response.data;
+  } catch (error) {
+    throw new Error(
+      error.response?.data?.message || 'Error updating user language'
+    );
+  }
+};
+
 module.exports = {
   getUserById,
   registerNewPatient,
@@ -336,4 +359,5 @@ module.exports = {
   deleteUserAccount,
   getAboutPage,
   getTermsPage,
+  updateUserLanguage,
 };

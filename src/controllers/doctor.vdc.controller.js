@@ -28,6 +28,7 @@ const getVDCSettings = async (req, res) => {
             consultationFees: professional.consultationFees,
             availableDays: professional.availableDays,
             availableTimeSlots: professional.availableTimeSlots,
+            paymentOptions: professional.paymentOptions || {},
         };
 
         res.json({
@@ -55,6 +56,7 @@ const updateVDCSettings = async (req, res) => {
             consultationFees,
             availableDays,
             availableTimeSlots,
+            paymentOptions,
         } = req.body;
 
         // Find doctor's professional details
@@ -144,6 +146,38 @@ const updateVDCSettings = async (req, res) => {
                 }
                 updateData.availableTimeSlots = parsedTimeSlots;
             }
+
+            // Handle payment options
+            if (paymentOptions !== undefined) {
+                // Validate payment options structure
+                if (typeof paymentOptions === 'object' && paymentOptions !== null) {
+                    const validatedPaymentOptions = {};
+
+                    // Handle UPI details
+                    if (paymentOptions.upi) {
+                        validatedPaymentOptions.upi = {
+                            enabled: Boolean(paymentOptions.upi.enabled),
+                            upiId: paymentOptions.upi.upiId || '',
+                            qrCode: paymentOptions.upi.qrCode || ''
+                        };
+                    }
+
+                    // Handle bank details
+                    if (paymentOptions.bank) {
+                        validatedPaymentOptions.bank = {
+                            enabled: Boolean(paymentOptions.bank.enabled),
+                            accountNumber: paymentOptions.bank.accountNumber || '',
+                            accountHolderName: paymentOptions.bank.accountHolderName || '',
+                            ifscCode: paymentOptions.bank.ifscCode || '',
+                            bankName: paymentOptions.bank.bankName || ''
+                        };
+                    }
+
+                    updateData.paymentOptions = validatedPaymentOptions;
+                } else if (paymentOptions === null || paymentOptions === '') {
+                    updateData.paymentOptions = {};
+                }
+            }
         }
 
         // If disabling VDC, clear consultation fees and availability
@@ -166,6 +200,7 @@ const updateVDCSettings = async (req, res) => {
             consultationFees: updatedProfessional.consultationFees,
             availableDays: updatedProfessional.availableDays,
             availableTimeSlots: updatedProfessional.availableTimeSlots,
+            paymentOptions: updatedProfessional.paymentOptions || {},
         };
 
         res.json({

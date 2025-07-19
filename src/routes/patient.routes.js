@@ -1030,4 +1030,140 @@ router.get('/settings/terms', async (req, res) => {
   }
 });
 
+/**
+ * @swagger
+ * /api/patients/language:
+ *   post:
+ *     summary: Update user's preferred language (Proxy to 3rd party API)
+ *     tags: [Patients]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - language
+ *             properties:
+ *               language:
+ *                 type: string
+ *                 description: Language code (e.g., en_US, hi_IN)
+ *                 example: "en_US"
+ *                 pattern: '^[a-z]{2}_[A-Z]{2}$'
+ *     responses:
+ *       200:
+ *         description: Language updated successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 status:
+ *                   type: boolean
+ *                   example: true
+ *                 status_code:
+ *                   type: integer
+ *                   example: 200
+ *                 message:
+ *                   type: string
+ *                   example: "Language updated to en_US for user 389"
+ *       400:
+ *         description: Bad request - Missing language or unsupported language
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 status:
+ *                   type: boolean
+ *                   example: false
+ *                 status_code:
+ *                   type: integer
+ *                   example: 400
+ *                 message:
+ *                   type: string
+ *                   example: "Unsupported language. Supported languages: en_US, hi_IN"
+ *       401:
+ *         description: Unauthorized - Missing or invalid token
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 status:
+ *                   type: boolean
+ *                   example: false
+ *                 status_code:
+ *                   type: integer
+ *                   example: 401
+ *                 message:
+ *                   type: string
+ *                   example: "Unauthorized access"
+ *       404:
+ *         description: User not found
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 status:
+ *                   type: boolean
+ *                   example: false
+ *                 status_code:
+ *                   type: integer
+ *                   example: 404
+ *                 message:
+ *                   type: string
+ *                   example: "User not found."
+ *       500:
+ *         description: Server error
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 status:
+ *                   type: boolean
+ *                   example: false
+ *                 status_code:
+ *                   type: integer
+ *                   example: 500
+ *                 message:
+ *                   type: string
+ *                   example: "Internal server error"
+ */
+router.post('/language', async (req, res) => {
+  try {
+    const { language } = req.body;
+    const authHeader = req.headers.authorization;
+
+    if (!authHeader) {
+      return res.status(401).json({
+        status: false,
+        status_code: 401,
+        message: 'Authorization header is required',
+      });
+    }
+
+    if (!language) {
+      return res.status(400).json({
+        status: false,
+        status_code: 400,
+        message: 'Language is required',
+      });
+    }
+
+    const result = await patientController.updateUserLanguage(language, authHeader);
+    res.json(result);
+  } catch (error) {
+    res.status(error.response?.status || 400).json({
+      status: false,
+      status_code: error.response?.status || 400,
+      message: error.message,
+    });
+  }
+});
+
 module.exports = router;

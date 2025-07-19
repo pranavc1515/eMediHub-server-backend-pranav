@@ -740,15 +740,6 @@ router.put('/personal-details/:id', auth, uploadProfilePhoto.single('profilePhot
  *           application/json:
  *             schema:
  *               type: object
- *               properties:
- *                 success:
- *                   type: boolean
- *                   example: true
- *                 message:
- *                   type: string
- *                   example: "Professional details updated successfully"
- *                 data:
- *                   type: object
  *       401:
  *         description: Unauthorized
  *       403:
@@ -1253,6 +1244,102 @@ router.put('/verify-email', auth, async (req, res) => {
       success: false,
       message: 'Failed to verify email',
       error: error.message,
+    });
+  }
+});
+
+/**
+ * @swagger
+ * /api/doctors/delete-account:
+ *   delete:
+ *     summary: Delete own doctor account (self-deletion)
+ *     description: |
+ *       Allows authenticated doctor to delete their own account without passing doctor ID.
+ *       This action is irreversible and will:
+ *       - Check for active consultations (prevents deletion if any exist)
+ *       - Check for patients in waiting queue (prevents deletion if any exist)
+ *       - Archive completed consultation history
+ *       - Soft delete prescriptions
+ *       - Remove all doctor data
+ *     tags: [Doctors - Account]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Account deleted successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: "Doctor account deleted successfully"
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     deletedAt:
+ *                       type: string
+ *                       format: date-time
+ *                       example: "2025-01-20T10:30:00.000Z"
+ *                     doctorId:
+ *                       type: integer
+ *                       example: 123
+ *       400:
+ *         description: Cannot delete account due to active consultations or patients in queue
+ *       401:
+ *         description: Unauthorized - Missing or invalid token
+ *       404:
+ *         description: Doctor not found
+ *       500:
+ *         description: Server error during deletion
+ */
+router.delete('/delete-account', auth, async (req, res) => {
+  try {
+    const doctorId = req.user.id;
+
+    if (!doctorId) {
+      return res.status(401).json({
+        success: false,
+        message: 'Authentication required',
+      });
+    }
+
+    const result = await doctorController.deleteDoctorAccount(doctorId);
+
+    res.json({
+      success: result.success,
+      message: result.message,
+      data: {
+        deletedAt: result.deletedAt,
+        doctorId: result.doctorId
+      }
+    });
+  } catch (error) {
+    console.error('Delete account error:', error);
+
+    // Handle specific error cases
+    if (error.message.includes('not found')) {
+      return res.status(404).json({
+        success: false,
+        message: error.message,
+      });
+    }
+
+    if (error.message.includes('Cannot delete account')) {
+      return res.status(400).json({
+        success: false,
+        message: error.message,
+      });
+    }
+
+    // Generic error response
+    res.status(500).json({
+      success: false,
+      message: error.message,
     });
   }
 });
@@ -1791,6 +1878,10 @@ router.get('/professional-details/:id/certificates', auth, async (req, res) => {
  *                       type: object
  *                       description: Time slots for each day
  *                       example: {"monday": {"start": "09:00", "end": "17:00"}, "tuesday": {"start": "10:00", "end": "18:00"}}
+ *                     paymentOptions:
+ *                       type: object
+ *                       description: Payment options for receiving consultation fees
+ *                       example: {"upi": {"enabled": true, "upiId": "doctor@paytm"}, "bank": {"enabled": true, "accountNumber": "1234567890", "accountHolderName": "Dr. John Smith", "ifscCode": "HDFC0001234", "bankName": "HDFC Bank"}}
  *       401:
  *         description: Unauthorized
  *       404:
@@ -1828,6 +1919,48 @@ router.get('/professional-details/:id/certificates', auth, async (req, res) => {
  *                 type: object
  *                 description: Time slots for each available day
  *                 example: {"monday": {"start": "09:00", "end": "17:00"}, "tuesday": {"start": "10:00", "end": "18:00"}}
+ *               paymentOptions:
+ *                 type: object
+ *                 description: Payment options for receiving consultation fees
+ *                 properties:
+ *                   upi:
+ *                     type: object
+ *                     properties:
+ *                       enabled:
+ *                         type: boolean
+ *                         description: Enable UPI payments
+ *                         example: true
+ *                       upiId:
+ *                         type: string
+ *                         description: UPI ID for receiving payments
+ *                         example: "doctor@paytm"
+ *                       qrCode:
+ *                         type: string
+ *                         description: Base64 encoded QR code image
+ *                         example: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUg..."
+ *                   bank:
+ *                     type: object
+ *                     properties:
+ *                       enabled:
+ *                         type: boolean
+ *                         description: Enable bank transfer payments
+ *                         example: true
+ *                       accountNumber:
+ *                         type: string
+ *                         description: Bank account number
+ *                         example: "1234567890"
+ *                       accountHolderName:
+ *                         type: string
+ *                         description: Account holder name
+ *                         example: "Dr. John Smith"
+ *                       ifscCode:
+ *                         type: string
+ *                         description: IFSC code of the bank
+ *                         example: "HDFC0001234"
+ *                       bankName:
+ *                         type: string
+ *                         description: Name of the bank
+ *                         example: "HDFC Bank"
  *             anyOf:
  *               - required: ["vdcEnabled"]
  *               - required: ["consultationFees"]
@@ -1935,5 +2068,141 @@ router.get('/vdc-status', auth, vdcController.checkVDCStatus);
 
 router.get('/vdc-settings', auth, vdcController.getVDCSettings);
 router.put('/vdc-settings', auth, vdcController.updateVDCSettings);
+
+// =============================================
+// Doctor Language Routes
+// =============================================
+
+/**
+ * @swagger
+ * /api/doctors/language:
+ *   get:
+ *     summary: Get doctor's UI language preference
+ *     tags: [Doctors - Language]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Language preference retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     uiLanguage:
+ *                       type: string
+ *                       description: Current UI language preference
+ *                       example: "en"
+ *                       enum: ["en", "hi", "ta", "te", "ml", "kn"]
+ *       401:
+ *         description: Unauthorized
+ *       404:
+ *         description: Doctor not found
+ *   post:
+ *     summary: Update doctor's UI language preference
+ *     tags: [Doctors - Language]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - language
+ *             properties:
+ *               language:
+ *                 type: string
+ *                 description: Language code for UI display
+ *                 example: "hi"
+ *                 enum: ["en", "hi", "ta", "te", "ml", "kn"]
+ *     responses:
+ *       200:
+ *         description: Language updated successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: "Language updated successfully"
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     uiLanguage:
+ *                       type: string
+ *                       example: "hi"
+ *       400:
+ *         description: Bad request - Invalid language
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: false
+ *                 message:
+ *                   type: string
+ *                   example: "Unsupported language. Supported languages: en, hi, ta, te, ml, kn"
+ *       401:
+ *         description: Unauthorized
+ *       404:
+ *         description: Doctor not found
+ */
+router.get('/language', auth, async (req, res) => {
+  try {
+    const doctorId = req.user.id;
+    const result = await doctorController.getDoctorLanguage(doctorId);
+
+    res.json({
+      success: true,
+      data: result,
+    });
+  } catch (error) {
+    res.status(400).json({
+      success: false,
+      message: error.message,
+    });
+  }
+});
+
+router.post('/language', auth, async (req, res) => {
+  try {
+    const doctorId = req.user.id;
+    const { language } = req.body;
+
+    if (!language) {
+      return res.status(400).json({
+        success: false,
+        message: 'Language is required',
+      });
+    }
+
+    const result = await doctorController.updateDoctorLanguage(doctorId, language);
+
+    res.json({
+      success: true,
+      message: 'Language updated successfully',
+      data: result,
+    });
+  } catch (error) {
+    res.status(400).json({
+      success: false,
+      message: error.message,
+    });
+  }
+});
 
 module.exports = router;

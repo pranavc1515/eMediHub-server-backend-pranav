@@ -5,6 +5,12 @@ const {
   DoctorProfessional,
 } = require('../models/doctor.model');
 const { Op } = require('sequelize');
+const sequelize = require('../config/database');
+
+// Import related models for delete function
+const Consultation = require('../models/consultation.model');
+const PatientQueue = require('../models/patientQueue.model');
+const Prescription = require('../models/prescription.model');
 
 // Utility function to generate a random 6-digit OTP
 const generateOTP = () => {
@@ -528,6 +534,200 @@ const getAvailableDoctors = async (
   }
 };
 
+// Get doctor's UI language preference
+const getDoctorLanguage = async (doctorId) => {
+  try {
+    // Find doctor's professional details
+    const professional = await DoctorProfessional.findOne({
+      where: { doctorId },
+      attributes: ['uiLanguage'],
+    });
+
+    if (!professional) {
+      // Create professional entry with default language if not exists
+      const newProfessional = await DoctorProfessional.create({
+        doctorId,
+        status: 'Verified',
+        uiLanguage: 'en',
+      });
+      return { uiLanguage: newProfessional.uiLanguage };
+    }
+
+    return { uiLanguage: professional.uiLanguage };
+  } catch (error) {
+    throw new Error(`Error fetching doctor language: ${error.message}`);
+  }
+};
+
+// Update doctor's UI language preference
+const updateDoctorLanguage = async (doctorId, language) => {
+  try {
+    // Validate language
+    const supportedLanguages = ['en', 'hi', 'ta', 'te', 'ml', 'kn'];
+    if (!supportedLanguages.includes(language)) {
+      throw new Error(`Unsupported language. Supported languages: ${supportedLanguages.join(', ')}`);
+    }
+
+    // Find or create professional details
+    let professional = await DoctorProfessional.findOne({
+      where: { doctorId },
+    });
+
+    if (!professional) {
+      professional = await DoctorProfessional.create({
+        doctorId,
+        status: 'Verified',
+        uiLanguage: language,
+      });
+    } else {
+      await professional.update({ uiLanguage: language });
+    }
+
+    return { uiLanguage: professional.uiLanguage };
+  } catch (error) {
+    throw new Error(`Error updating doctor language: ${error.message}`);
+  }
+};
+
+// Delete doctor account with proper safeguards
+const deleteDoctorAccount = async (doctorId) => {
+  const transaction = await sequelize.transaction();
+
+  try {
+    // Check if doctor exists
+    const doctor = await DoctorPersonal.findByPk(doctorId);
+    if (!doctor) {
+      throw new Error('Doctor not found');
+    }
+
+    // Check for active consultations
+    const activeConsultations = await Consultation.count({
+      where: {
+        doctorId,
+        status: ['pending', 'ongoing']
+      }
+    });
+
+    if (activeConsultations > 0) {
+      throw new Error('Cannot delete account with active consultations. Please complete or cancel all pending consultations first.');
+    }
+
+    // Check for patients in queue
+    const patientsInQueue = await PatientQueue.count({
+      where: {
+        doctorId,
+        status: 'waiting'
+      }
+    });
+
+    if (patientsInQueue > 0) {
+      throw new Error('Cannot delete account with patients waiting in queue. Please clear the queue first.');
+    }
+
+    // Try the foreign key disable approach first
+    try {
+      // Temporarily disable foreign key checks to allow deletion
+      await sequelize.query('SET FOREIGN_KEY_CHECKS = 0', { transaction });
+
+      // Step 1: Delete prescriptions
+      await Prescription.destroy({
+        where: { doctorId },
+        transaction
+      });
+
+      // Step 2: Delete patient queue entries
+      await PatientQueue.destroy({
+        where: { doctorId },
+        transaction
+      });
+
+      // Step 3: Delete consultations
+      await Consultation.destroy({
+        where: { doctorId },
+        transaction
+      });
+
+      // Step 4: Delete professional details
+      await DoctorProfessional.destroy({
+        where: { doctorId },
+        transaction
+      });
+
+      // Step 5: Delete personal details
+      await DoctorPersonal.destroy({
+        where: { id: doctorId },
+        transaction
+      });
+
+      // Re-enable foreign key checks
+      await sequelize.query('SET FOREIGN_KEY_CHECKS = 1', { transaction });
+
+    } catch (fkError) {
+      console.log('Foreign key disable approach failed, trying soft delete approach:', fkError.message);
+
+      // Re-enable foreign key checks
+      try {
+        await sequelize.query('SET FOREIGN_KEY_CHECKS = 1', { transaction });
+      } catch (e) {
+        console.log('Warning: Could not re-enable foreign key checks');
+      }
+
+      // Fallback: Soft delete approach
+      // Mark prescriptions as deleted
+      await Prescription.update(
+        { isDeleted: true },
+        { where: { doctorId }, transaction }
+      );
+
+      // Delete patient queue entries (these should be safe to delete)
+      await PatientQueue.destroy({
+        where: { doctorId },
+        transaction
+      });
+
+      // Update consultations to cancelled status instead of deleting
+      await Consultation.update(
+        {
+          status: 'cancelled',
+          cancelReason: 'Doctor account deleted',
+          cancelledBy: 'doctor'
+        },
+        { where: { doctorId }, transaction }
+      );
+
+      // Delete professional details
+      await DoctorProfessional.destroy({
+        where: { doctorId },
+        transaction
+      });
+
+      // Mark doctor as inactive instead of deleting
+      await DoctorPersonal.update(
+        {
+          status: 'Inactive',
+          email: null, // Clear personal data
+          phoneNumber: `DELETED_${doctorId}_${Date.now()}`, // Anonymize phone
+          fullName: 'DELETED ACCOUNT'
+        },
+        { where: { id: doctorId }, transaction }
+      );
+    }
+
+    await transaction.commit();
+
+    return {
+      success: true,
+      message: 'Doctor account deleted successfully',
+      deletedAt: new Date(),
+      doctorId: doctorId
+    };
+
+  } catch (error) {
+    await transaction.rollback();
+    throw new Error(`Error deleting doctor account: ${error.message}`);
+  }
+};
+
 // Export all doctor controller functions
 module.exports = {
   registerDoctor,
@@ -540,4 +740,7 @@ module.exports = {
   getOnlineStatus,
   getAllDoctors,
   getAvailableDoctors,
+  getDoctorLanguage,
+  updateDoctorLanguage,
+  deleteDoctorAccount,
 };

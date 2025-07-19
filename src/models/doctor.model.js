@@ -146,6 +146,12 @@ const DoctorProfessional = sequelize.define(
       type: DataTypes.JSON,
       defaultValue: [],
     },
+    uiLanguage: {
+      type: DataTypes.STRING(5),
+      allowNull: false,
+      defaultValue: 'en',
+      comment: 'Language preference for UI display (e.g., en, hi, ta, te, ml, kn)',
+    },
     consultationFees: {
       type: DataTypes.DECIMAL(10, 2),
       allowNull: true,
@@ -163,6 +169,11 @@ const DoctorProfessional = sequelize.define(
       allowNull: false,
       defaultValue: false,
       comment: 'Whether doctor has opted for Video/Digital Consultation services',
+    },
+    paymentOptions: {
+      type: DataTypes.JSON,
+      defaultValue: {},
+      comment: 'Payment options including UPI ID, bank details for receiving payments',
     },
   },
   {
