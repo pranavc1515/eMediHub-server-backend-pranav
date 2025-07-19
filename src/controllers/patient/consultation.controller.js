@@ -109,16 +109,69 @@ const getUpcomingConsultations = async (req, res) => {
   }
 };
 
-// Get consultation history for a patient
+// Get consultation history for a patient and their family members
 const getConsultationHistory = async (req, res) => {
   try {
-    const patientId = req.user.id;
+    const userId = req.user.id;
     const { page = 1, limit = 10 } = req.query;
     const offset = (page - 1) * limit;
     
+    // Get authorization token for family API calls
+    const token = req.header('Authorization')?.replace('Bearer ', '');
+    
+    // Get all patient IDs (user + family members)
+    let patientIds = [userId]; // Start with the user themselves
+    
+    try {
+      // Import family controller functions
+      const { getFamilyTreeData } = require('../family.controller');
+      
+      // Get family tree data
+      const familyData = await getFamilyTreeData(userId, token);
+      
+      if (familyData && familyData.data && familyData.data.familyTree) {
+        // Extract all family member IDs recursively
+        const extractFamilyMemberIds = (familyTree) => {
+          const ids = [];
+          for (const member of familyTree) {
+            // Add member ID if it's different from the main user
+            if (parseInt(member.id) !== parseInt(userId)) {
+              ids.push(parseInt(member.id));
+            }
+            
+            // Check children recursively if they exist
+            if (member.children && member.children.length > 0) {
+              ids.push(...extractFamilyMemberIds(member.children));
+            }
+            
+            // Check relatives if they exist
+            if (member.relatives && member.relatives.length > 0) {
+              ids.push(...extractFamilyMemberIds(member.relatives));
+            }
+          }
+          return ids;
+        };
+        
+        const familyMemberIds = extractFamilyMemberIds(familyData.data.familyTree);
+        patientIds = [...patientIds, ...familyMemberIds];
+        
+        console.log(`Found ${familyMemberIds.length} family members for user ${userId}`);
+      }
+    } catch (familyError) {
+      console.warn(`Failed to fetch family members for user ${userId}:`, familyError.message);
+      // Continue with just the user's own consultations
+    }
+    
+    // Remove duplicates and ensure all IDs are numbers
+    patientIds = [...new Set(patientIds.map(id => parseInt(id)))];
+    
+    console.log(`Fetching consultation history for patient IDs: ${patientIds.join(', ')}`);
+    
     const { count, rows: consultations } = await Consultation.findAndCountAll({
       where: {
-        patientId,
+        patientId: {
+          [Op.in]: patientIds
+        },
         status: {
           [Op.in]: ['completed', 'cancelled']
         }
@@ -137,14 +190,26 @@ const getConsultationHistory = async (req, res) => {
       offset: parseInt(offset)
     });
 
+    // Add patient info to each consultation to indicate who the consultation was for
+    const consultationsWithPatientInfo = consultations.map(consultation => {
+      const isOwnConsultation = parseInt(consultation.patientId) === parseInt(userId);
+      return {
+        ...consultation.toJSON(),
+        isOwnConsultation,
+        patientType: isOwnConsultation ? 'self' : 'family_member'
+      };
+    });
+
     res.status(200).json({
       success: true,
       count,
       totalPages: Math.ceil(count / limit),
       currentPage: parseInt(page),
-      data: consultations
+      includedPatientIds: patientIds,
+      data: consultationsWithPatientInfo
     });
   } catch (error) {
+    console.error('Error fetching consultation history:', error);
     res.status(500).json({
       success: false,
       message: 'Error fetching consultation history',

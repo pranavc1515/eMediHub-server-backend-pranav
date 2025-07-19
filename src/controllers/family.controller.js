@@ -173,4 +173,82 @@ exports.removeFamilyMember = async (req, res) => {
             });
         }
     }
-}; 
+};
+
+// Helper function to get family tree data for internal use
+const getFamilyTreeData = async (userId, authToken) => {
+    try {
+        const axiosInstance = createAxiosInstance(authToken);
+        const response = await axiosInstance.get('/family/view-family-tree');
+        
+        if (response.data && response.data.status) {
+            return response.data;
+        } else {
+            throw new Error('Failed to fetch family tree data');
+        }
+    } catch (error) {
+        console.error('Error fetching family tree data:', error);
+        throw new Error('Failed to fetch family tree data');
+    }
+};
+
+// Helper function to validate if patientId belongs to user's family tree
+const validateFamilyMembership = async (userId, patientId, authToken) => {
+    try {
+        // If userId and patientId are the same, it's the user themselves
+        if (parseInt(userId) === parseInt(patientId)) {
+            return true;
+        }
+
+        // Get family tree data
+        const familyData = await getFamilyTreeData(userId, authToken);
+        
+        if (!familyData || !familyData.data || !familyData.data.familyTree) {
+            return false;
+        }
+
+        // Check if patientId exists in the family tree
+        const isValidFamilyMember = checkPatientInFamilyTree(familyData.data.familyTree, patientId);
+        
+        return isValidFamilyMember;
+    } catch (error) {
+        console.error('Error validating family membership:', error);
+        return false;
+    }
+};
+
+// Recursive function to check if patientId exists in family tree
+const checkPatientInFamilyTree = (familyTree, patientId) => {
+    for (const member of familyTree) {
+        // Check if current member matches
+        if (parseInt(member.id) === parseInt(patientId)) {
+            return true;
+        }
+        
+        // Check children recursively if they exist
+        if (member.children && member.children.length > 0) {
+            if (checkPatientInFamilyTree(member.children, patientId)) {
+                return true;
+            }
+        }
+        
+        // Check relatives if they exist
+        if (member.relatives && member.relatives.length > 0) {
+            if (checkPatientInFamilyTree(member.relatives, patientId)) {
+                return true;
+            }
+        }
+    }
+    
+    return false;
+};
+
+// Export the helper functions for use in other controllers
+module.exports = {
+    viewFamilyTree: exports.viewFamilyTree,
+    addFamilyConnection: exports.addFamilyConnection,
+    updateFamilyDetails: exports.updateFamilyDetails,
+    removeFamilyMember: exports.removeFamilyMember,
+    validateFamilyMembership,
+    getFamilyTreeData
+};

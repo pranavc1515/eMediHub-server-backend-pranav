@@ -794,24 +794,66 @@ const getPatientConsultationHistory = async (req, res) => {
 // Check consultation status and handle reconnection
 const checkConsultationStatus = async (req, res) => {
   try {
-    const { doctorId, patientId } = req.body;
+    const { doctorId, patientId, userId } = req.body;
 
-    if (!doctorId || !patientId) {
+    if (!doctorId) {
       return res.status(400).json({
         success: false,
-        message: 'Both doctorId and patientId are required',
+        message: 'doctorId is required',
       });
     }
 
+    if (!patientId && !userId) {
+      return res.status(400).json({
+        success: false,
+        message: 'Either patientId or userId is required',
+      });
+    }
+
+    let finalPatientId = patientId;
+
+    // If userId is provided and patientId is not explicitly passed, validate family membership
+    let isValidatedFamilyMember = false;
+    if (userId && patientId && parseInt(userId) !== parseInt(patientId)) {
+      try {
+        const token = req.header('Authorization')?.replace('Bearer ', '');
+        const { validateFamilyMembership } = require('./family.controller');
+        
+        const isValidFamilyMember = await validateFamilyMembership(userId, patientId, token);
+        
+        if (!isValidFamilyMember) {
+          return res.status(400).json({
+            success: false,
+            message: 'Patient is not a valid family member',
+            action: 'invalid_family_member'
+          });
+        }
+        
+        console.log(`User ${userId} validated to consult as family member ${patientId}`);
+        finalPatientId = patientId;
+        isValidatedFamilyMember = true;
+      } catch (error) {
+        console.error('Error validating family membership:', error);
+        return res.status(500).json({
+          success: false,
+          message: 'Failed to validate family membership',
+          error: error.message
+        });
+      }
+    } else if (userId && !patientId) {
+      // If only userId is provided, use it as patientId (user consulting as themselves)
+      finalPatientId = userId;
+    }
+
     console.log(
-      `Checking consultation status for doctor ${doctorId} and patient ${patientId}`
+      `Checking consultation status for doctor ${doctorId} and patient ${finalPatientId}`
     );
 
     // Check for ongoing consultation first
     const ongoingConsultation = await Consultation.findOne({
       where: {
         doctorId,
-        patientId,
+        patientId: finalPatientId,
         status: 'ongoing',
       },
     });
@@ -832,7 +874,7 @@ const checkConsultationStatus = async (req, res) => {
     const completedConsultation = await Consultation.findOne({
       where: {
         doctorId,
-        patientId,
+        patientId: finalPatientId,
         status: 'completed',
         updatedAt: {
           [Op.gte]: new Date(Date.now() - 30 * 1000), // Within last 30s
@@ -858,7 +900,7 @@ const checkConsultationStatus = async (req, res) => {
     const existingQueueEntry = await PatientQueue.findOne({
       where: {
         doctorId,
-        patientId,
+        patientId: finalPatientId,
         status: ['waiting', 'in_consultation'],
       },
     });
@@ -895,25 +937,30 @@ const checkConsultationStatus = async (req, res) => {
       const { v4: uuidv4 } = require('uuid');
 
       // Validate patient using external API (if microservice) or local DB
-      try {
-        await validatePatientExternally(patientId);
-        console.log(`Patient ${patientId} validated for auto-join`);
-      } catch (error) {
-        console.error(
-          `Patient validation failed for auto-join: ${error.message}`
-        );
-        return res.status(404).json({
-          success: false,
-          message: 'Patient not found or not active',
-          action: 'patient_not_found',
-          error: error.message,
-        });
+      // Skip external validation for family members since they might not have active accounts
+      if (!isValidatedFamilyMember) {
+        try {
+          await validatePatientExternally(finalPatientId);
+          console.log(`Patient ${finalPatientId} validated for auto-join`);
+        } catch (error) {
+          console.error(
+            `Patient validation failed for auto-join: ${error.message}`
+          );
+          return res.status(404).json({
+            success: false,
+            message: 'Patient not found or not active',
+            action: 'patient_not_found',
+            error: error.message,
+          });
+        }
+      } else {
+        console.log(`Skipping external validation for validated family member ${finalPatientId}`);
       }
 
       // Check if patient is already in queue with another doctor
       const existingQueueWithOtherDoctor = await PatientQueue.findOne({
         where: {
-          patientId,
+          patientId: finalPatientId,
           doctorId: { [Op.ne]: doctorId },
           status: ['waiting', 'in_consultation'],
         },
@@ -942,14 +989,14 @@ const checkConsultationStatus = async (req, res) => {
       // Create new queue entry
       const queueEntry = await PatientQueue.create({
         doctorId,
-        patientId,
+        patientId: finalPatientId,
         position: nextPosition,
         roomName,
         status: 'waiting',
       });
 
       console.log(
-        `Patient ${patientId} automatically joined queue at position ${nextPosition}`
+        `Patient ${finalPatientId} automatically joined queue at position ${nextPosition}`
       );
 
       // Broadcast queue updates
@@ -1018,7 +1065,7 @@ const checkConsultationStatus = async (req, res) => {
     } else {
       // Doctor request - just return status without auto-joining
       console.log(
-        `No active consultation or queue entry found for doctor ${doctorId} and patient ${patientId}`
+        `No active consultation or queue entry found for doctor ${doctorId} and patient ${finalPatientId}`
       );
       return res.status(200).json({
         success: true,
