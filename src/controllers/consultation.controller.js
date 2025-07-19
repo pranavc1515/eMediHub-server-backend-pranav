@@ -6,9 +6,10 @@ const {
 const { Op } = require('sequelize');
 const {
   getDoctorSocketId,
-  getPatientSocketId,
+  getUserSocketId,
+  getPatientSocketId, // Deprecated - use getUserSocketId
   // doctorSocketMap,
-  // patientSocketMap,
+  // userSocketMap,
 } = require('../socket/socketHandlers');
 const { io } = require('../socket/socket');
 const PatientQueue = require('../models/patientQueue.model');
@@ -17,7 +18,11 @@ const patientController = require('./patient.controller');
 const ENABLE_PATIENT_MICROSERVICE = process.env.ENABLE_PATIENT_MICROSERVICE;
 
 // Helper function to validate patient using external API
-const validatePatientExternally = async (patientId, authToken = null) => {
+const validatePatientExternally = async (
+  patientId,
+  userId = null,
+  authToken = null
+) => {
   if (!ENABLE_PATIENT_MICROSERVICE) {
     // For internal mode, check local database
     const { PatientIN } = require('../models/patientIN.model');
@@ -36,6 +41,13 @@ const validatePatientExternally = async (patientId, authToken = null) => {
 
   // For microservice mode, validate using external API
   try {
+    // If this is a family member validation, it should be done before calling this function
+    // This function should only validate direct patients
+    if (userId && parseInt(userId) !== parseInt(patientId)) {
+      throw new Error('Family member validation should be done separately');
+    }
+
+    // Try direct patient validation
     const result = await patientController.getUserById(patientId, authToken);
 
     if (!result.status || result.status_code !== 200) {
@@ -66,6 +78,7 @@ const validatePatientExternally = async (patientId, authToken = null) => {
       dob: patientData.dob,
       isPhoneVerify: patientData.isPhoneVerify,
       isEmailVerify: patientData.isEmailVerify,
+      isFamilyMember: false,
     };
   } catch (error) {
     console.error(
@@ -79,26 +92,45 @@ const validatePatientExternally = async (patientId, authToken = null) => {
 };
 
 // Helper function to get patient data for display
-const getPatientDataForDisplay = async (patientId, authToken = null) => {
-  if (!ENABLE_PATIENT_MICROSERVICE) {
-    const { PatientIN } = require('../models/patientIN.model');
-    const patient = await PatientIN.findByPk(patientId);
-    return patient
-      ? {
-          name: patient.name,
-          phone: patient.phone,
-          email: patient.email,
-        }
-      : {
-          name: 'Unknown Patient',
-          phone: '',
-          email: '',
-        };
-  }
-
-  // For microservice mode, get data from external API
+const getPatientDataForDisplay = async (
+  patientId,
+  userId = null,
+  authToken = null
+) => {
   try {
-    const patientData = await validatePatientExternally(patientId, authToken);
+    // If userId is provided and different from patientId, use family API
+    if (userId && parseInt(userId) !== parseInt(patientId)) {
+      console.log(`Fetching family member data for patient ${patientId} under user ${userId}`);
+      try {
+        const { getFamilyMemberData } = require('./family.controller');
+        const familyMemberData = await getFamilyMemberData(
+          userId,
+          patientId,
+          authToken
+        );
+        if (familyMemberData) {
+          return {
+            name: familyMemberData.name,
+            phone: familyMemberData.phone,
+            email: familyMemberData.email,
+          };
+        }
+      } catch (familyError) {
+        console.warn(
+          `Failed to fetch family member data for patient ${patientId} under user ${userId}:`,
+          familyError.message
+        );
+        throw familyError; // Don't fall through for family members
+      }
+    }
+
+    // If userId and patientId are same or userId not provided, use external patient detail
+    console.log(`Fetching direct patient data for patient ${patientId}`);
+    const patientData = await validatePatientExternally(
+      patientId,
+      userId,
+      authToken
+    );
     return {
       name: patientData.name,
       phone: patientData.phone,
@@ -110,7 +142,7 @@ const getPatientDataForDisplay = async (patientId, authToken = null) => {
       error.message
     );
     return {
-      name: 'Unknown Patient',
+      name: 'Patient',
       phone: '',
       email: '',
     };
@@ -120,7 +152,7 @@ const getPatientDataForDisplay = async (patientId, authToken = null) => {
 // start consultation from doctor side
 const startConsultation = async (req, res) => {
   try {
-    const { doctorId, patientId } = req.body;
+    const { doctorId, patientId, userId } = req.body;
 
     // Validate input
     if (!doctorId) {
@@ -129,23 +161,89 @@ const startConsultation = async (req, res) => {
     if (!patientId) {
       return res.status(400).json({ error: 'patientId is required' });
     }
+    // userId is optional for backward compatibility, but recommended for family member support
 
     console.log(
       `Doctor ${doctorId} attempting to start consultation with patient ${patientId}`
     );
 
-    // Validate patient using external API (if microservice) or local DB
-    try {
-      await validatePatientExternally(patientId);
-      console.log(`Patient ${patientId} validated successfully`);
-    } catch (error) {
-      console.error(`Patient validation failed: ${error.message}`);
-      return res.status(404).json({
-        success: false,
-        error: 'Patient not found or not active',
-        message: error.message,
-      });
-    }
+    // todo: Removing Validation because it will required getfamilytree by Id API
+    // Get auth token for API calls
+    // const authToken = req.header('Authorization')?.replace('Bearer ', '');
+
+    // Validate patient based on whether they are a family member or direct user
+    // try {
+    //   let isValidatedFamilyMember = false;
+
+    //   if (userId && parseInt(userId) !== parseInt(patientId)) {
+    //     // Case: Family member consultation
+    //     console.log(`Validating family member ${patientId} for user ${userId}`);
+    //     const {
+    //       validateFamilyMembership,
+    //       getFamilyMemberData,
+    //     } = require('./family.controller');
+
+    //     // First validate family relationship
+    //     console.log(
+    //       `🔍 Starting family validation: User ${userId} -> Patient ${patientId}`
+    //     );
+    //     const isValidFamily = await validateFamilyMembership(
+    //       userId,
+    //       patientId,
+    //       authToken
+    //     );
+    //     console.log(`🔍 Family validation result: ${isValidFamily}`);
+
+    //     if (!isValidFamily) {
+    //       console.error(
+    //         `❌ Invalid family relationship: User ${userId} is not related to patient ${patientId}`
+    //       );
+    //       return res.status(400).json({
+    //         success: false,
+    //         error: 'Invalid family member',
+    //         message: 'The selected patient is not a valid family member',
+    //       });
+    //     }
+
+    //     isValidatedFamilyMember = true;
+    //     console.log(`✅ Family relationship validated successfully`);
+
+    //     // Get family member data to confirm they exist
+    //     const familyMemberData = await getFamilyMemberData(
+    //       userId,
+    //       patientId,
+    //       authToken
+    //     );
+    //     if (!familyMemberData) {
+    //       console.error(
+    //         `Family member data not found for patient ${patientId}`
+    //       );
+    //       return res.status(404).json({
+    //         success: false,
+    //         error: 'Family member not found',
+    //         message: 'The selected family member was not found',
+    //       });
+    //     }
+
+    //     console.log(
+    //       `Family member ${patientId} validated successfully for user ${userId}`
+    //     );
+    //   }
+
+    //   // Case: Direct patient consultation or fallback validation if not a family member
+    //   if (!isValidatedFamilyMember) {
+    //     console.log(`Validating direct patient ${patientId}`);
+    //     await validatePatientExternally(patientId, userId, authToken);
+    //     console.log(`Patient ${patientId} validated successfully`);
+    //   }
+    // } catch (error) {
+    //   console.error(`Patient validation failed: ${error.message}`);
+    //   return res.status(404).json({
+    //     success: false,
+    //     error: 'Patient not found or not active',
+    //     message: error.message,
+    //   });
+    // }
 
     // Check if there's already an ongoing consultation
     const existingConsultation = await Consultation.findOne({
@@ -244,32 +342,32 @@ const startConsultation = async (req, res) => {
         status: ['waiting', 'in_consultation'],
       },
       order: [['position', 'ASC']],
-      // No includes - we'll fetch patient data separately
     });
 
-    // Fetch patient data for each queue entry
-    const updatedQueue = await Promise.all(
-      updatedQueueData.map(async (entry) => {
-        const patientData = await getPatientDataForDisplay(entry.patientId);
-        return {
-          ...entry.toJSON(),
-          patient: patientData,
-        };
-      })
-    );
+    // Use patient data from table instead of external fetching
+    const updatedQueue = updatedQueueData.map((entry) => {
+      return {
+        ...entry.toJSON(),
+        patient: {
+          name: entry.patientName,
+          phone: entry.patientPhone,
+        },
+      };
+    });
 
-    // Notify patient that consultation has started
-    const patientSocketId = getPatientSocketId(patientId);
-    if (patientSocketId) {
+    // Notify user that consultation has started
+    const userSocketId = getUserSocketId(queueEntry.userId);
+    if (userSocketId) {
       const payload = {
         roomName: queueEntry.roomName,
         consultationId: consultation.id,
         doctorId,
         patientId,
+        userId: queueEntry.userId,
       };
-      io.to(patientSocketId).emit('CONSULTATION_STARTED', payload);
+      io.to(userSocketId).emit('CONSULTATION_STARTED', payload);
       console.log(
-        `Consultation start notification sent to patient ${patientId}`
+        `Consultation start notification sent to user ${queueEntry.userId} for patient ${patientId}`
       );
     }
 
@@ -280,10 +378,10 @@ const startConsultation = async (req, res) => {
       console.log(`Queue change notification sent to doctor ${doctorId}`);
     }
 
-    // Notify all patients in queue about position updates
+    // Notify all users in queue about position updates
     updatedQueue.forEach((entry) => {
-      const patientSocketId = getPatientSocketId(entry.patientId);
-      if (patientSocketId) {
+      const userSocketId = getUserSocketId(entry.userId);
+      if (userSocketId) {
         const positionData = {
           position: entry.position,
           estimatedWait:
@@ -294,11 +392,13 @@ const startConsultation = async (req, res) => {
           queueLength: updatedQueue.filter((e) => e.status === 'waiting')
             .length,
           totalInQueue: updatedQueue.length,
+          patientId: entry.patientId,
+          userId: entry.userId,
         };
 
-        io.to(patientSocketId).emit('POSITION_UPDATE', positionData);
+        io.to(userSocketId).emit('POSITION_UPDATE', positionData);
         console.log(
-          `Position update sent to patient ${entry.patientId}:`,
+          `Position update sent to user ${entry.userId} for patient ${entry.patientId}:`,
           positionData
         );
       }
@@ -353,10 +453,15 @@ const NextConsultation = async (req, res) => {
     }
 
     // Validate patient using external API (if microservice) or local DB
+    const authToken = req.header('Authorization')?.replace('Bearer ', '');
     try {
-      await validatePatientExternally(nextPatient.patientId);
+      await validatePatientExternally(
+        nextPatient.patientId,
+        nextPatient.userId,
+        authToken
+      );
       console.log(
-        `Next patient ${nextPatient.patientId} validated successfully`
+        `Next patient ${nextPatient.patientId} validated successfully for user ${nextPatient.userId}`
       );
     } catch (error) {
       console.error(`Next patient validation failed: ${error.message}`);
@@ -598,9 +703,14 @@ const endConsultationByDoctor = async (req, res) => {
       });
 
       // Fetch patient data for each queue entry
+      const authToken = req.header('Authorization')?.replace('Bearer ', '');
       const updatedQueue = await Promise.all(
         updatedQueueData.map(async (entry) => {
-          const patientData = await getPatientDataForDisplay(entry.patientId);
+          const patientData = await getPatientDataForDisplay(
+            entry.patientId,
+            entry.userId,
+            authToken
+          );
           return {
             ...entry.toJSON(),
             patient: patientData,
@@ -700,10 +810,13 @@ const getDoctorConsultationHistory = async (req, res) => {
     });
 
     // Fetch patient data for each consultation
+    const authToken = req.header('Authorization')?.replace('Bearer ', '');
     const consultations = await Promise.all(
       consultationsData.map(async (consultation) => {
         const patientData = await getPatientDataForDisplay(
-          consultation.patientId
+          consultation.patientId,
+          null,
+          authToken
         );
         return {
           ...consultation.toJSON(),
@@ -818,18 +931,24 @@ const checkConsultationStatus = async (req, res) => {
       try {
         const token = req.header('Authorization')?.replace('Bearer ', '');
         const { validateFamilyMembership } = require('./family.controller');
-        
-        const isValidFamilyMember = await validateFamilyMembership(userId, patientId, token);
-        
+
+        const isValidFamilyMember = await validateFamilyMembership(
+          userId,
+          patientId,
+          token
+        );
+
         if (!isValidFamilyMember) {
           return res.status(400).json({
             success: false,
             message: 'Patient is not a valid family member',
-            action: 'invalid_family_member'
+            action: 'invalid_family_member',
           });
         }
-        
-        console.log(`User ${userId} validated to consult as family member ${patientId}`);
+
+        console.log(
+          `User ${userId} validated to consult as family member ${patientId}`
+        );
         finalPatientId = patientId;
         isValidatedFamilyMember = true;
       } catch (error) {
@@ -837,7 +956,7 @@ const checkConsultationStatus = async (req, res) => {
         return res.status(500).json({
           success: false,
           message: 'Failed to validate family membership',
-          error: error.message
+          error: error.message,
         });
       }
     } else if (userId && !patientId) {
@@ -940,8 +1059,11 @@ const checkConsultationStatus = async (req, res) => {
       // Skip external validation for family members since they might not have active accounts
       if (!isValidatedFamilyMember) {
         try {
-          await validatePatientExternally(finalPatientId);
-          console.log(`Patient ${finalPatientId} validated for auto-join`);
+          const token = req.header('Authorization')?.replace('Bearer ', '');
+          await validatePatientExternally(finalPatientId, userId, token);
+          console.log(
+            `Patient ${finalPatientId} validated for auto-join for user ${userId}`
+          );
         } catch (error) {
           console.error(
             `Patient validation failed for auto-join: ${error.message}`
@@ -954,7 +1076,9 @@ const checkConsultationStatus = async (req, res) => {
           });
         }
       } else {
-        console.log(`Skipping external validation for validated family member ${finalPatientId}`);
+        console.log(
+          `Skipping external validation for validated family member ${finalPatientId} under user ${userId}`
+        );
       }
 
       // Check if patient is already in queue with another doctor
@@ -986,17 +1110,37 @@ const checkConsultationStatus = async (req, res) => {
       const nextPosition = (maxWaitingPosition || 0) + 1;
       const roomName = `room-${uuidv4()}`;
 
+      // Get patient data for queue entry
+      const authToken = req.header('Authorization')?.replace('Bearer ', '');
+      let patientData;
+      try {
+        patientData = await getPatientDataForDisplay(
+          finalPatientId,
+          userId,
+          authToken
+        );
+      } catch (error) {
+        // Use fallback data if external validation fails
+        patientData = {
+          name: 'Patient',
+          phone: '',
+        };
+      }
+      console.log('Patient data for queue:', patientData);
       // Create new queue entry
       const queueEntry = await PatientQueue.create({
         doctorId,
+        userId,
         patientId: finalPatientId,
+        patientName: patientData.name,
+        patientPhone: patientData.phone,
         position: nextPosition,
         roomName,
         status: 'waiting',
       });
 
       console.log(
-        `Patient ${finalPatientId} automatically joined queue at position ${nextPosition}`
+        `User ${userId} automatically joined queue for patient ${finalPatientId} at position ${nextPosition}`
       );
 
       // Broadcast queue updates
@@ -1013,19 +1157,18 @@ const checkConsultationStatus = async (req, res) => {
           status: ['waiting', 'in_consultation'],
         },
         order: [['position', 'ASC']],
-        // No includes - we'll fetch patient data separately
       });
 
-      // Fetch patient data for each queue entry
-      const updatedQueue = await Promise.all(
-        updatedQueueData.map(async (entry) => {
-          const patientData = await getPatientDataForDisplay(entry.patientId);
-          return {
-            ...entry.toJSON(),
-            patient: patientData,
-          };
-        })
-      );
+      // Use patient data from table instead of external fetching
+      const updatedQueue = updatedQueueData.map((entry) => {
+        return {
+          ...entry.toJSON(),
+          patient: {
+            name: entry.patientName,
+            phone: entry.patientPhone,
+          },
+        };
+      });
 
       // Notify doctor about queue change
       const doctorSocketId = getDoctorSocketId(doctorId);

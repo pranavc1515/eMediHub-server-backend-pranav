@@ -178,16 +178,28 @@ exports.removeFamilyMember = async (req, res) => {
 // Helper function to get family tree data for internal use
 const getFamilyTreeData = async (userId, authToken) => {
     try {
+        console.log(`📞 Making API call to fetch family tree for user ${userId}`);
+        console.log(`🔑 Using auth token: ${authToken ? 'Present' : 'Missing'}`);
+        console.log(`🌐 API URL: ${FAMILY_API_BASE_URL}/family/view-family-tree`);
+        
         const axiosInstance = createAxiosInstance(authToken);
         const response = await axiosInstance.get('/family/view-family-tree');
         
+        console.log(`📡 Family API response status: ${response.status}`);
+        console.log(`📊 Family API response data:`, JSON.stringify(response.data, null, 2));
+        
         if (response.data && response.data.status) {
+            console.log(`✅ Successfully fetched family tree data`);
             return response.data;
         } else {
+            console.log(`❌ Family API returned unsuccessful status`);
             throw new Error('Failed to fetch family tree data');
         }
     } catch (error) {
-        console.error('Error fetching family tree data:', error);
+        console.error('❌ Error fetching family tree data:', error);
+        if (error.response) {
+            console.error('📡 API Error Response:', error.response.status, error.response.data);
+        }
         throw new Error('Failed to fetch family tree data');
     }
 };
@@ -195,38 +207,60 @@ const getFamilyTreeData = async (userId, authToken) => {
 // Helper function to validate if patientId belongs to user's family tree
 const validateFamilyMembership = async (userId, patientId, authToken) => {
     try {
+        console.log(`🔍 Validating family membership: userId=${userId}, patientId=${patientId}`);
+        
         // If userId and patientId are the same, it's the user themselves
         if (parseInt(userId) === parseInt(patientId)) {
+            console.log(`✅ Same user - userId and patientId are identical`);
             return true;
         }
 
         // Get family tree data
+        console.log(`📞 Fetching family tree data for user ${userId}...`);
         const familyData = await getFamilyTreeData(userId, authToken);
         
         if (!familyData || !familyData.data || !familyData.data.familyTree) {
+            console.log(`❌ No family tree data found for user ${userId}`);
             return false;
         }
 
+        console.log(`📊 Family tree structure:`, JSON.stringify(familyData.data, null, 2));
+        
         // Check if patientId exists in the family tree
+        console.log(`🔍 About to search for patientId ${patientId} in family tree...`);
+        
+        // Additional check: also search in the user data itself
+        if (familyData.data.user && parseInt(familyData.data.user.id) === parseInt(patientId)) {
+            console.log(`✅ Found patientId ${patientId} as the main user`);
+            return true;
+        }
+        
         const isValidFamilyMember = checkPatientInFamilyTree(familyData.data.familyTree, patientId);
         
+        console.log(`🔍 Family membership check result: ${isValidFamilyMember ? 'VALID' : 'INVALID'}`);
         return isValidFamilyMember;
     } catch (error) {
-        console.error('Error validating family membership:', error);
+        console.error('❌ Error validating family membership:', error);
         return false;
     }
 };
 
 // Recursive function to check if patientId exists in family tree
 const checkPatientInFamilyTree = (familyTree, patientId) => {
+    console.log(`🔍 Searching for patientId ${patientId} in family tree with ${familyTree.length} members`);
+    
     for (const member of familyTree) {
+        console.log(`👤 Checking member: ID=${member.id}, Name=${member.name}`);
+        
         // Check if current member matches
         if (parseInt(member.id) === parseInt(patientId)) {
+            console.log(`✅ Found matching family member: ${member.name} (ID: ${member.id})`);
             return true;
         }
         
         // Check children recursively if they exist
         if (member.children && member.children.length > 0) {
+            console.log(`👶 Checking ${member.children.length} children of ${member.name}`);
             if (checkPatientInFamilyTree(member.children, patientId)) {
                 return true;
             }
@@ -234,13 +268,87 @@ const checkPatientInFamilyTree = (familyTree, patientId) => {
         
         // Check relatives if they exist
         if (member.relatives && member.relatives.length > 0) {
+            console.log(`👥 Checking ${member.relatives.length} relatives of ${member.name}`);
             if (checkPatientInFamilyTree(member.relatives, patientId)) {
                 return true;
             }
         }
     }
     
+    console.log(`❌ PatientId ${patientId} not found in this family tree branch`);
     return false;
+};
+
+// Function to get family member data by patientId
+const getFamilyMemberData = async (userId, patientId, authToken) => {
+    try {
+        // First check if it's the user themselves
+        if (parseInt(userId) === parseInt(patientId)) {
+            // Return null so the calling function can use direct patient validation
+            return null;
+        }
+
+        // Get family tree data
+        const familyData = await getFamilyTreeData(userId, authToken);
+        
+        if (!familyData || !familyData.data || !familyData.data.familyTree) {
+            throw new Error('Family tree data not found');
+        }
+
+        // Find the specific family member data
+        const memberData = findMemberInFamilyTree(familyData.data.familyTree, patientId);
+        
+        if (!memberData) {
+            throw new Error(`Family member with ID ${patientId} not found in user ${userId}'s family tree`);
+        }
+
+        return memberData;
+    } catch (error) {
+        console.error('Error getting family member data:', error);
+        throw error;
+    }
+};
+
+// Recursive function to find specific member data in family tree
+const findMemberInFamilyTree = (familyTree, patientId) => {
+    for (const member of familyTree) {
+        // Check if current member matches
+        if (parseInt(member.id) === parseInt(patientId)) {
+            return {
+                id: member.id,
+                name: member.name,
+                phone: member.phone,
+                email: member.email,
+                age: member.age,
+                dob: member.dob,
+                gender: member.gender,
+                height: member.height,
+                weight: member.weight,
+                diet: member.diet,
+                relation_type: member.relation_type,
+                marital_status: member.marital_status,
+                profession: member.profession,
+            };
+        }
+        
+        // Check children recursively if they exist
+        if (member.children && member.children.length > 0) {
+            const childData = findMemberInFamilyTree(member.children, patientId);
+            if (childData) {
+                return childData;
+            }
+        }
+        
+        // Check relatives if they exist
+        if (member.relatives && member.relatives.length > 0) {
+            const relativeData = findMemberInFamilyTree(member.relatives, patientId);
+            if (relativeData) {
+                return relativeData;
+            }
+        }
+    }
+    
+    return null;
 };
 
 // Export the helper functions for use in other controllers
@@ -250,5 +358,6 @@ module.exports = {
     updateFamilyDetails: exports.updateFamilyDetails,
     removeFamilyMember: exports.removeFamilyMember,
     validateFamilyMembership,
-    getFamilyTreeData
+    getFamilyTreeData,
+    getFamilyMemberData
 };

@@ -6,10 +6,12 @@ const { PatientIN } = require('../models/patientIN.model');
 const { Op } = require('sequelize');
 
 const doctorSocketMap = new Map();
-const patientSocketMap = new Map();
+const userSocketMap = new Map(); // Changed from patientSocketMap - maps userId to socketId
 
 const getDoctorSocketId = (doctorId) => doctorSocketMap.get(doctorId);
-const getPatientSocketId = (patientId) => patientSocketMap.get(patientId);
+const getUserSocketId = (userId) => userSocketMap.get(userId);
+// Backward compatibility - deprecated, use getUserSocketId instead
+const getPatientSocketId = (patientId) => userSocketMap.get(patientId);
 
 // Store room participant data: roomName -> Set of participantIds
 const roomParticipants = new Map();
@@ -24,11 +26,11 @@ const setupVideoQueueSocket = (io) => {
     }
 
     if (userType === 'patient' && userId) {
-      patientSocketMap.set(Number(userId), socket.id);
-      console.log(`Patient connected: ${userId}, socket: ${socket.id}`);
+      userSocketMap.set(Number(userId), socket.id);
+      console.log(`User connected: ${userId}, socket: ${socket.id}`);
     }
     console.log('DoctorMap', doctorSocketMap);
-    console.log('PatientMap', patientSocketMap);
+    console.log('UserMap', userSocketMap);
 
     // Function to broadcast queue updates to all patients in queue
     const broadcastQueueUpdates = async (doctorId) => {
@@ -50,10 +52,10 @@ const setupVideoQueueSocket = (io) => {
 
         console.log(`Broadcasting queue updates for doctor ${doctorId}, ${queueEntries.length} entries`);
 
-        // Notify each patient about their updated position
+        // Notify each user about their updated position (using userId, not patientId)
         queueEntries.forEach((entry, index) => {
-          const patientSocketId = getPatientSocketId(entry.patientId);
-          if (patientSocketId) {
+          const userSocketId = getUserSocketId(entry.userId || entry.patientId); // Use userId if available, fallback to patientId for backward compatibility
+          if (userSocketId) {
             const positionData = {
               position: entry.position,
               estimatedWait: entry.status === 'in_consultation' 
@@ -64,8 +66,8 @@ const setupVideoQueueSocket = (io) => {
               totalInQueue: queueEntries.length,
             };
             
-            io.to(patientSocketId).emit('POSITION_UPDATE', positionData);
-            console.log(`Position update sent to patient ${entry.patientId}:`, positionData);
+            io.to(userSocketId).emit('POSITION_UPDATE', positionData);
+            console.log(`Position update sent to user ${entry.userId || entry.patientId} for patient ${entry.patientId}:`, positionData);
           }
         });
 
@@ -193,10 +195,10 @@ const setupVideoQueueSocket = (io) => {
         if (queueEntry) {
           await queueEntry.update({ status: 'done' }); // Use 'done' for PatientQueue ENUM
 
-          // Notify patient that consultation has ended
-          const patientSocketId = getPatientSocketId(queueEntry.patientId);
-          if (patientSocketId) {
-            io.to(patientSocketId).emit('CONSULTATION_ENDED', {
+          // Notify user that consultation has ended (using userId from queue entry)
+          const userSocketId = getUserSocketId(queueEntry.userId || queueEntry.patientId);
+          if (userSocketId) {
+            io.to(userSocketId).emit('CONSULTATION_ENDED', {
               consultationId,
               message: 'Consultation has ended successfully'
             });
@@ -271,11 +273,11 @@ const setupVideoQueueSocket = (io) => {
             attributes: ['patientId'],
           });
 
-          // Emit to each patient's socket
-          patients.forEach(({ patientId }) => {
-            const patientSocketId = getPatientSocketId(patientId);
-            if (patientSocketId) {
-              io.to(patientSocketId).emit('DOCTOR_STATUS_CHANGED', {
+          // Emit to each user's socket (patients in queue)
+          patients.forEach(({ userId, patientId }) => {
+            const userSocketId = getUserSocketId(userId || patientId); // Use userId if available
+            if (userSocketId) {
+              io.to(userSocketId).emit('DOCTOR_STATUS_CHANGED', {
                 doctorId,
                 isOnline: doctor.isOnline,
               });
@@ -430,9 +432,9 @@ const setupVideoQueueSocket = (io) => {
           }
         }
 
-        for (const [patientId, id] of patientSocketMap.entries()) {
+        for (const [userId, id] of userSocketMap.entries()) {
           if (id === socket.id) {
-            patientSocketMap.delete(patientId);
+            userSocketMap.delete(userId);
             break;
           }
         }
@@ -501,8 +503,11 @@ const setupVideoQueueSocket = (io) => {
 module.exports = {
   setupVideoQueueSocket,
   getDoctorSocketId,
-  getPatientSocketId,
-  patientSocketMap,
+  getUserSocketId,
+  getPatientSocketId, // Deprecated - use getUserSocketId
+  userSocketMap,
   doctorSocketMap,
   roomParticipants,
+  // Backward compatibility exports
+  patientSocketMap: userSocketMap,
 };

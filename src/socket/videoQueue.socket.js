@@ -30,13 +30,16 @@ const setupVideoQueueSocket = (io) => {
         console.log('Doctor_MAP', doctorSocketMap);
         console.log('Patient_MAP', patientSocketMap);
         console.log('Patient has entered the queue, PLEASE CHECK', data);
-        const { doctorId, patientId, roomName } = data;
+        const { doctorId, patientId, roomName, userId } = data;
 
         if (!doctorId || !patientId) {
           console.error('Missing required data', { doctorId, patientId });
           socket.emit('ERROR', { message: 'Missing doctor or patient ID' });
           return;
         }
+
+        // Use userId if provided, otherwise fall back to patientId for backward compatibility
+        const effectiveUserId = userId || patientId;
 
         // Get patient data
         const patient = await PatientIN.findByPk(patientId);
@@ -80,7 +83,10 @@ const setupVideoQueueSocket = (io) => {
         const queueEntry = await PatientQueue.create(
           {
             doctorId,
+            userId: effectiveUserId,
             patientId,
+            patientName: patient.name,
+            patientPhone: patient.phone,
             position: queueCount + 1,
             roomName,
             socketId: socket.id,
@@ -98,20 +104,23 @@ const setupVideoQueueSocket = (io) => {
         });
 
         // Send updated queue to doctor
-        const updatedQueue = await PatientQueue.findAll({
+        const updatedQueueData = await PatientQueue.findAll({
           where: {
             doctorId,
             status: ['waiting', 'in_consultation'],
           },
           order: [['position', 'ASC']],
-          attributes: ['id', 'position', 'status', 'patientId', 'roomName'],
-          include: [
-            {
-              model: PatientIN,
-              as: 'patient',
-              attributes: ['name'],
+        });
+
+        // Use patient data from table instead of external fetching
+        const updatedQueue = updatedQueueData.map((entry) => {
+          return {
+            ...entry.toJSON(),
+            patient: {
+              name: entry.patientName,
+              phone: entry.patientPhone,
             },
-          ],
+          };
         });
 
         console.log(
