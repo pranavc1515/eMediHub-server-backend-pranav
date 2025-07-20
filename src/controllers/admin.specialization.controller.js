@@ -334,7 +334,7 @@ exports.getDoctorsBySpecialization = async (req, res) => {
                     attributes: ['specialization', 'qualification', 'yearsOfExperience', 'consultationFees']
                 }
             ],
-            attributes: { exclude: ['password'] },
+            attributes: {},
             limit: parseInt(limit),
             offset: parseInt(offset),
             order: [['fullName', 'ASC']]

@@ -1,5 +1,4 @@
 const { DataTypes } = require('sequelize');
-const bcrypt = require('bcryptjs');
 const sequelize = require('../config/database');
 
 // Doctor Personal Information Table
@@ -30,10 +29,6 @@ const DoctorPersonal = sequelize.define(
       validate: {
         isEmail: true,
       },
-    },
-    password: {
-      type: DataTypes.STRING(255),
-      allowNull: true,
     },
     gender: {
       type: DataTypes.ENUM('Male', 'Female', 'Other'),
@@ -84,18 +79,6 @@ const DoctorPersonal = sequelize.define(
     timestamps: true,
     createdAt: 'timeCreated',
     updatedAt: 'timeUpdated',
-    hooks: {
-      beforeCreate: async (doctor) => {
-        if (doctor.password) {
-          doctor.password = await bcrypt.hash(doctor.password, 10);
-        }
-      },
-      beforeUpdate: async (doctor) => {
-        if (doctor.changed('password')) {
-          doctor.password = await bcrypt.hash(doctor.password, 10);
-        }
-      },
-    },
   }
 );
 
@@ -197,11 +180,6 @@ const DoctorProfessional = sequelize.define(
 // Establish the relation between Personal and Professional
 DoctorPersonal.hasOne(DoctorProfessional, { foreignKey: 'doctorId' });
 DoctorProfessional.belongsTo(DoctorPersonal, { foreignKey: 'doctorId' });
-
-// Method to validate password
-DoctorPersonal.prototype.validatePassword = async function (password) {
-  return bcrypt.compare(password, this.password);
-};
 
 // Set up the models for database synchronization
 const syncModels = async () => {

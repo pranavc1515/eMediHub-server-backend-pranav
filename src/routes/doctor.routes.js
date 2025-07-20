@@ -1108,9 +1108,7 @@ router.get('/profile', auth, async (req, res) => {
 
     // Find doctor with professional details
     const doctor = await DoctorPersonal.findByPk(requestedDoctorId, {
-      attributes: {
-        exclude: ['password'],
-      },
+      attributes: {},
       include: [
         {
           model: DoctorProfessional,

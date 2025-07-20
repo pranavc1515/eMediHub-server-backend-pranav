@@ -402,9 +402,7 @@ const getAllDoctors = async (
       }),
       DoctorPersonal.findAll({
         where: wherePers,
-        attributes: {
-          exclude: ['password'],
-        },
+        attributes: {},
         include: [
           {
             model: DoctorProfessional,
@@ -497,7 +495,7 @@ const getAvailableDoctors = async (
     // Get available doctors with pagination
     const doctors = await DoctorPersonal.findAll({
       where: wherePers,
-      attributes: { exclude: ['password'] },
+      attributes: {},
       include: [
         {
           model: DoctorProfessional,

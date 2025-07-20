@@ -24,7 +24,7 @@ exports.getAllDoctors = async (req, res) => {
     const { count, rows: doctors } = await Doctor.findAndCountAll({
       where,
       include,
-      attributes: { exclude: ['password', 'createdAt', 'updatedAt'] },
+      attributes: { exclude: ['createdAt', 'updatedAt'] },
       limit: parseInt(limit),
       offset: parseInt(offset),
       order: [['timeCreated', 'DESC']],
@@ -62,12 +62,11 @@ exports.updateDoctorProfile = async (req, res) => {
 
     // Admin can update verification status
     const updatedData = { ...req.body };
-    delete updatedData.password; // Admin cannot change password
+    // Password field removed from doctor model
 
     await doctor.update(updatedData);
 
     const doctorData = doctor.toJSON();
-    delete doctorData.password;
 
     res.json({
       success: true,
