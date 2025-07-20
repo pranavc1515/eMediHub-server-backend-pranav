@@ -1,6 +1,7 @@
 # eMediHub Server Backend - Project Handover Document
 
 ## Table of Contents
+
 - [Project Overview](#project-overview)
 - [System Architecture](#system-architecture)
 - [Technology Stack](#technology-stack)
@@ -24,6 +25,7 @@
 **eMediHub** is a comprehensive telemedicine platform backend that enables video consultations between patients and doctors. The system supports real-time queue management, payment processing, patient management, and doctor onboarding with VDC (Video/Digital Consultation) opt-in capabilities.
 
 ### Core Features
+
 - JWT-based authentication for multiple user types
 - Video consultation queue system with real-time updates
 - External payment microservice integration
@@ -55,6 +57,7 @@ The system follows a **microservice-friendly architecture** with modular design:
 ```
 
 ### Key Components:
+
 - **Express.js Server** with RESTful APIs
 - **Socket.IO Server** for real-time communication
 - **MySQL Database** with Sequelize ORM
@@ -67,25 +70,30 @@ The system follows a **microservice-friendly architecture** with modular design:
 ## Technology Stack
 
 ### Backend Framework
+
 - **Node.js** with Express.js
 - **Socket.IO** for real-time communication
 - **Sequelize ORM** for database operations
 
 ### Database
+
 - **MySQL** as primary database
 - **Sequelize** for ORM and migrations
 
 ### External Services
+
 - **AWS S3** for file storage
 - **Twilio** for video calling
 - **External Payment Microservice** (Razorpay integration)
 
 ### Security & Authentication
+
 - **JWT** for token-based authentication
 - **bcryptjs** for password hashing
 - **CORS** configuration for cross-origin requests
 
 ### Development Tools
+
 - **Swagger** for API documentation
 - **Winston** for logging
 - **Nodemon** for development
@@ -97,21 +105,8 @@ The system follows a **microservice-friendly architecture** with modular design:
 
 ### Core Models
 
-#### 1. User Management
-```sql
--- User table (Universal user management)
-users {
-  id: UUID (Primary Key)
-  email: STRING
-  password: STRING (hashed)
-  role: ENUM('admin', 'doctor', 'patient')
-  isActive: BOOLEAN
-  doctorId: INTEGER (FK to doctor_personal)
-  patientId: INTEGER (FK to patient_personal)
-}
-```
+#### 1. Doctor Management
 
-#### 2. Doctor Management
 ```sql
 -- Doctor Personal Information
 doctor_personal {
@@ -147,21 +142,8 @@ doctor_professional {
 }
 ```
 
-#### 3. Patient Management
-```sql
--- Patient Authentication Model (local auth only)
-patients {
-  id: UUID (Primary Key)
-  email: STRING
-  password: STRING
-  firstName: STRING
-  lastName: STRING
-  role: ENUM('admin', 'user')
-}
--- Note: Actual patient data managed by external microservice
-```
+#### 2. Consultation System
 
-#### 4. Consultation System
 ```sql
 -- Consultation records
 consultation {
@@ -188,7 +170,11 @@ consultation {
   prescription: TEXT
   diagnosis: TEXT
 }
+```
 
+#### 3. patient System
+
+```sql
 -- Real-time Queue Management
 patient_queue {
   id: INTEGER (Primary Key)
@@ -208,7 +194,8 @@ patient_queue {
 }
 ```
 
-#### 5. Content Management
+#### 4. Content Management
+
 ```sql
 -- CMS for FAQ, policies, help content
 contents {
@@ -245,6 +232,7 @@ specializations {
 ## API Endpoints
 
 ### Authentication APIs (`/api/auth`)
+
 ```http
 POST /api/auth/register          # Register new patient
 POST /api/auth/login             # Patient login
@@ -253,6 +241,7 @@ POST /api/auth/login-admin       # Admin login
 ```
 
 ### Patient APIs (`/api/patients`)
+
 ```http
 # Registration & Login (Proxy to external service)
 POST /api/patients/register-new      # Register new patient (phone-based)
@@ -276,6 +265,7 @@ DELETE /api/patients/health-records/:id # Delete health record
 ```
 
 ### Patient Consultation APIs (`/api/consultation`)
+
 ```http
 POST /api/consultation/book          # Book video consultation
 GET /api/consultation/history        # Get consultation history
@@ -284,6 +274,7 @@ DELETE /api/consultation/:id/cancel  # Cancel consultation
 ```
 
 ### Doctor APIs (`/api/doctors`)
+
 ```http
 # Registration & Authentication
 POST /api/doctors/register           # Register with phone number
@@ -311,6 +302,7 @@ GET /api/doctors/by-specialization/:specialization # Doctors by specialty
 ```
 
 ### Doctor Consultation APIs (`/api/doctor/consultations`)
+
 ```http
 GET /api/doctor/consultations/queue     # Get current patient queue
 POST /api/doctor/consultations/start/:id # Start consultation with patient
@@ -320,6 +312,7 @@ GET /api/doctor/consultations/history    # Get consultation history
 ```
 
 ### Video APIs (`/api/video`)
+
 ```http
 POST /api/video/token                # Generate Twilio access token
 POST /api/video/room                 # Create video room
@@ -331,6 +324,7 @@ POST /api/video/participant/:participantSid/disconnect # Disconnect participant
 ```
 
 ### Payment APIs (`/api/payments`)
+
 ```http
 # Payment Management (Proxy to external service)
 POST /api/payments/initiate          # Initiate payment for VDC services
@@ -347,6 +341,7 @@ GET /api/payment/details/:paymentId  # Use /api/payments/status instead
 ```
 
 ### Queue Management APIs (`/api/queue`)
+
 ```http
 POST /api/queue/join                 # Join doctor's queue
 GET /api/queue/status/:doctorId      # Get queue status
@@ -355,6 +350,7 @@ GET /api/queue/position              # Get current position in queue
 ```
 
 ### Reports APIs (`/api/reports`)
+
 ```http
 # Proxy to external reports service
 GET /api/reports/consultations       # Get consultation reports
@@ -368,13 +364,14 @@ GET /api/reports/revenue             # Get revenue reports
 ## Authentication & Authorization
 
 ### JWT-based Authentication
+
 The system uses JSON Web Tokens for stateless authentication:
 
 ```javascript
 // Token structure
 {
   id: "user_id",
-  email: "user@example.com", 
+  email: "user@example.com",
   role: "patient|doctor|admin",
   iat: timestamp,
   exp: timestamp
@@ -382,11 +379,13 @@ The system uses JSON Web Tokens for stateless authentication:
 ```
 
 ### Middleware
+
 - **`authenticateToken`**: Validates JWT tokens
 - **`auth`**: Enhanced authentication with user loading
 - **Environment-based Auth**: Development mode allows bypassing auth
 
 ### User Roles
+
 - **Patient**: Can book consultations, manage profile, join video calls
 - **Doctor**: Can manage consultations, set VDC preferences, handle patient queue
 - **Admin**: System administration capabilities
@@ -396,39 +395,43 @@ The system uses JSON Web Tokens for stateless authentication:
 ## Real-time Features
 
 ### Socket.IO Integration
+
 Real-time communication powered by Socket.IO for:
 
 #### Queue Management Events
+
 ```javascript
 // Patient Events
-'PATIENT_JOIN_QUEUE'     // Patient joins doctor's queue
-'LEAVE_QUEUE'            // Patient leaves queue
-'POSITION_UPDATE'        // Queue position updates
+'PATIENT_JOIN_QUEUE'; // Patient joins doctor's queue
+'LEAVE_QUEUE'; // Patient leaves queue
+'POSITION_UPDATE'; // Queue position updates
 
-// Doctor Events  
-'START_CONSULTATION'     // Doctor starts consultation
-'END_CONSULTATION'       // Doctor ends consultation
-'QUEUE_CHANGED'          // Queue status updates
+// Doctor Events
+'START_CONSULTATION'; // Doctor starts consultation
+'END_CONSULTATION'; // Doctor ends consultation
+'QUEUE_CHANGED'; // Queue status updates
 
 // Video Events
-'PARTICIPANT_JOINED_ROOM'  // User joins video room
-'PARTICIPANT_LEFT_ROOM'    // User leaves video room
-'CONSULTATION_STARTED'     // Consultation begins
-'CONSULTATION_ENDED'       // Consultation ends
+'PARTICIPANT_JOINED_ROOM'; // User joins video room
+'PARTICIPANT_LEFT_ROOM'; // User leaves video room
+'CONSULTATION_STARTED'; // Consultation begins
+'CONSULTATION_ENDED'; // Consultation ends
 ```
 
 #### Connection Management
+
 ```javascript
 // Client connection with user type
 const socket = io('server_url', {
   query: {
-    userType: 'patient|doctor', 
-    userId: 'user_id'
-  }
+    userType: 'patient|doctor',
+    userId: 'user_id',
+  },
 });
 ```
 
 #### Real-time Updates
+
 - **Queue Position**: Live updates of patient position in queue
 - **Doctor Status**: Online/offline status changes
 - **Consultation Flow**: Start/end consultation notifications
@@ -439,14 +442,17 @@ const socket = io('server_url', {
 ## Payment System
 
 ### External Microservice Integration
+
 The system integrates with an external payment microservice instead of direct payment processing:
 
 #### Configuration
+
 ```env
-PAYMENT_MICROSERVICE_URL=http://43.204.91.138:3000
+
 ```
 
 #### Payment Flow
+
 1. **Initiate Payment**: Client calls `/api/payments/initiate`
 2. **Payment Processing**: Request proxied to external service
 3. **Payment ID Returned**: Used for consultation booking
@@ -454,6 +460,7 @@ PAYMENT_MICROSERVICE_URL=http://43.204.91.138:3000
 5. **Payment Tracking**: Stored in consultation record
 
 #### API Proxy Pattern
+
 ```javascript
 // All payment requests are proxied to external service
 app.use('/api/payments', (req, res) => {
@@ -468,28 +475,23 @@ app.use('/api/payments', (req, res) => {
 ## File Management
 
 ### AWS S3 Integration
+
 File uploads handled through AWS S3:
 
-#### Configuration
-```env
-AWS_ACCESS_KEY_ID=your-aws-key
-AWS_SECRET_ACCESS_KEY=your-aws-secret  
-AWS_REGION=us-east-1
-AWS_S3_BUCKET=your-bucket-name
-```
-
 #### Upload Types
+
 - **Doctor Profile Photos**: `/api/doctors/upload-profile-photo`
 - **Medical Certificates**: `/api/doctors/upload-certificates`
 - **Patient Documents**: Various patient-related document uploads
 
 #### File Upload Utilities
+
 ```javascript
 // src/utils/fileUpload.js
-- uploadToS3()                    // Generic S3 upload
-- uploadDoctorProfilePhotoToS3()  // Doctor profile photos
-- uploadDoctorDocumentToS3()      // Doctor certificates
-- deleteFromS3()                  // Delete files from S3
+-uploadToS3() - // Generic S3 upload
+  uploadDoctorProfilePhotoToS3() - // Doctor profile photos
+  uploadDoctorDocumentToS3() - // Doctor certificates
+  deleteFromS3(); // Delete files from S3
 ```
 
 ---
@@ -497,12 +499,13 @@ AWS_S3_BUCKET=your-bucket-name
 ## Environment Configuration
 
 ### Required Environment Variables
+
 ```env
 # Server Configuration
 NODE_ENV=development|production
 PORT=3000
 
-# Database Configuration  
+# Database Configuration
 DB_HOST=localhost
 DB_USER=root
 DB_PASSWORD=password
@@ -524,7 +527,7 @@ REPORTS_API_BASE_URL=http://43.204.91.138:3000
 # AWS Configuration
 AWS_ACCESS_KEY_ID=your-aws-key
 AWS_SECRET_ACCESS_KEY=your-aws-secret
-AWS_REGION=us-east-1  
+AWS_REGION=us-east-1
 AWS_S3_BUCKET=your-bucket-name
 
 # Twilio Configuration
@@ -541,9 +544,11 @@ LOG_LEVEL=info|debug|error
 ### Configuration Modes
 
 #### Patient Management
+
 - **External Microservice**: All patient data and operations are handled by external patient API service
 
 #### Environment-based Features
+
 - **Production**: Full authentication required
 - **Development**: Simplified auth with header-based user simulation
 
@@ -552,6 +557,7 @@ LOG_LEVEL=info|debug|error
 ## Database Setup & Scripts
 
 ### Available Scripts
+
 ```bash
 # Database Management
 npm run sync-db           # Synchronize database schema
@@ -568,6 +574,7 @@ npm run test-socket      # Test socket functionality
 ```
 
 ### Database Synchronization
+
 ```javascript
 // Patient data managed externally - no patient foreign key constraints
 // System automatically configured for external patient microservice
@@ -575,11 +582,12 @@ await dropForeignKeyConstraints(); // Remove any patient-related FK constraints
 ```
 
 ### Seeding Data
+
 ```bash
 # Seed with admin data
 npm run seed -- admin
 
-# Seed with simple data  
+# Seed with simple data
 npm run seed -- simple
 
 # Custom seeding
@@ -591,24 +599,28 @@ node src/seeders/runSeeders.js
 ## Recent Major Changes
 
 ### 1. Payment System Migration (Latest)
+
 - **Migrated** from internal Razorpay integration to external payment microservice
 - **Maintained** backward compatibility with legacy endpoints
 - **Added** `paymentId` field to consultation model for tracking
 - **Implemented** proxy pattern for seamless external service integration
 
-### 2. VDC (Video/Digital Consultation) Implementation  
+### 2. VDC (Video/Digital Consultation) Implementation
+
 - **Added** VDC opt-in system for doctors
 - **Separated** consultation settings from professional details
 - **Implemented** VDC-specific APIs for fee and availability management
 - **Enhanced** doctor listing APIs to respect VDC preferences
 
 ### 3. User ID Support for Family Consultations
+
 - **Distinguished** between `userId` (platform owner) and `patientId` (consultation recipient)
 - **Updated** PatientQueue model to support family member consultations
 - **Enhanced** socket management for proper user tracking
 - **Implemented** family member consultation workflows
 
 ### 4. Real-time Queue System
+
 - **Implemented** Socket.IO-based video consultation queue
 - **Added** real-time position updates and notifications
 - **Created** PatientQueue model for queue management
@@ -619,6 +631,7 @@ node src/seeders/runSeeders.js
 ## Deployment Guide
 
 ### Prerequisites
+
 - Node.js 16+ and npm
 - MySQL 8.0+
 - AWS S3 bucket configured
@@ -627,49 +640,42 @@ node src/seeders/runSeeders.js
 ### Deployment Steps
 
 1. **Clone Repository**
+
 ```bash
 git clone <repository-url>
 cd eMediHub-server-backend
 ```
 
 2. **Install Dependencies**
+
 ```bash
 npm install
 ```
 
 3. **Environment Setup**
+
 ```bash
 cp .env.example .env
 # Configure all required environment variables
 ```
 
-4. **Database Setup**
-```bash
-# Create MySQL database
-mysql -u root -p -e "CREATE DATABASE emedihub;"
+4. **Start Server**
 
-# Synchronize schema
-npm run sync-db
-
-# Seed initial data
-npm run seed
-```
-
-5. **Start Server**
 ```bash
 # Production
 npm start
 
-# Development  
+# Development
 npm run dev
 ```
 
-6. **Verify Deployment**
+5. **Verify Deployment**
+
 - Server: `http://localhost:3000`
 - API Documentation: `http://localhost:3000/api-docs`
-- Health Check: `GET /api/health` (if implemented)
 
 ### Production Considerations
+
 - Use process manager (PM2) for production
 - Set up reverse proxy (Nginx)
 - Configure SSL certificates
@@ -679,58 +685,6 @@ npm run dev
 
 ---
 
-## Troubleshooting
-
-### Common Issues
-
-#### 1. Database Connection Issues
-```bash
-# Check MySQL service
-sudo systemctl status mysql
-
-# Test connection
-mysql -u <username> -p -h <host>
-
-# Verify environment variables
-echo $DB_HOST $DB_USER $DB_NAME
-```
-
-#### 2. Foreign Key Constraint Errors
-```bash
-# Fix foreign key constraints (removes patient FK constraints for external service)
-npm run fix-foreign-keys
-
-# System configured for external patient microservice
-npm start
-```
-
-#### 3. Socket Connection Issues
-- Verify CORS configuration in `src/socket/socket.js`
-- Check client connection parameters
-- Review socket event handlers in `src/socket/socketHandlers.js`
-
-#### 4. Payment Integration Issues
-- Verify `PAYMENT_MICROSERVICE_URL` environment variable
-- Check external payment service availability
-- Review proxy implementation in `src/controllers/payment.controller.js`
-
-#### 5. File Upload Issues
-- Verify AWS credentials and permissions
-- Check S3 bucket configuration
-- Review file upload utilities in `src/utils/fileUpload.js`
-
-### Debugging Tools
-- **Swagger UI**: `/api-docs` for API testing
-- **Database Logs**: Check MySQL error logs
-- **Application Logs**: Winston logger in `src/utils/logger.js`
-- **Socket Testing**: `npm run test-socket`
-
-### Performance Monitoring
-- Monitor database query performance
-- Track Socket.IO connection metrics
-- Monitor external service response times
-- Review memory and CPU usage
-
 ---
 
 ## Admin APIs (Brief Overview)
@@ -738,12 +692,14 @@ npm start
 The system includes comprehensive admin APIs for platform management:
 
 ### Admin Authentication
+
 ```http
 POST /api/auth/register-admin    # Register admin user
 POST /api/auth/login-admin       # Admin login
 ```
 
 ### Doctor Management
+
 ```http
 GET /api/admin/doctors           # List all doctors
 PUT /api/admin/doctors/:id/verify # Verify doctor profile
@@ -751,12 +707,14 @@ PUT /api/admin/doctors/:id/status # Update doctor status
 ```
 
 ### System Configuration
+
 ```http
 GET /api/admin/settings          # Get system settings
 PUT /api/admin/settings          # Update system configuration
 ```
 
 ### Content Management
+
 ```http
 GET /api/admin/content           # Get CMS content
 POST /api/admin/content          # Create content
@@ -765,6 +723,7 @@ DELETE /api/admin/content/:id    # Delete content
 ```
 
 ### Analytics & Reports
+
 ```http
 GET /api/admin/analytics/consultations # Consultation analytics
 GET /api/admin/analytics/revenue       # Revenue analytics
@@ -773,6 +732,7 @@ GET /api/admin/analytics/patients      # Patient analytics
 ```
 
 ### Specialization Management
+
 ```http
 GET /api/admin/specializations    # List specializations
 POST /api/admin/specializations   # Create specialization
@@ -787,6 +747,7 @@ Admin APIs provide comprehensive platform management capabilities but are not th
 ## Support and Maintenance
 
 ### Code Structure
+
 - **Controllers**: Business logic in `src/controllers/`
 - **Models**: Database models in `src/models/`
 - **Routes**: API routes in `src/routes/`
@@ -795,6 +756,7 @@ Admin APIs provide comprehensive platform management capabilities but are not th
 - **Utilities**: Helper functions in `src/utils/`
 
 ### Best Practices
+
 - Follow RESTful API design patterns
 - Maintain comprehensive Swagger documentation
 - Use proper error handling and logging
@@ -803,6 +765,7 @@ Admin APIs provide comprehensive platform management capabilities but are not th
 - Monitor external service dependencies
 
 ### Documentation
+
 - **API Documentation**: Available at `/api-docs` when server is running
 - **Database Schema**: Defined in model files
 - **Socket Events**: Documented in socket handler files
@@ -814,4 +777,4 @@ Admin APIs provide comprehensive platform management capabilities but are not th
 **Last Updated**: Current Date  
 **Maintainer**: Development Team
 
-This handover document provides comprehensive coverage of the eMediHub backend system. For specific implementation details, refer to the codebase and API documentation available at `/api-docs`. 
+This handover document provides comprehensive coverage of the eMediHub backend system. For specific implementation details, refer to the codebase and API documentation available at `/api-docs`.
