@@ -49,7 +49,17 @@ const DoctorPersonal = sequelize.define(
     },
     emailVerified: {
       type: DataTypes.BOOLEAN,
-      defaultValue: true,
+      defaultValue: false,
+    },
+    emailOTP: {
+      type: DataTypes.STRING(6),
+      allowNull: true,
+      comment: 'OTP for email verification',
+    },
+    emailOTPExpiry: {
+      type: DataTypes.DATE,
+      allowNull: true,
+      comment: 'Expiry time for email OTP',
     },
     profilePhoto: {
       type: DataTypes.STRING(255),

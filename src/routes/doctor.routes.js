@@ -3,6 +3,7 @@ const router = express.Router();
 const { auth } = require('../middleware/auth.middleware');
 const doctorController = require('../controllers/doctor.controller');
 const vdcController = require('../controllers/doctor.vdc.controller');
+const emailVerificationController = require('../controllers/doctor.emailVerification.controller');
 const {
   DoctorPersonal,
   DoctorProfessional,
@@ -1164,10 +1165,19 @@ router.get('/profile', auth, async (req, res) => {
       });
     }
 
-    // For own profile, return everything including certificates
+    // For own profile, return everything including certificates and email verification status
+    const doctorData = doctor.toJSON();
+
+    // Add email verification status for own profile
+    doctorData.emailVerificationStatus = {
+      emailVerified: doctor.emailVerified,
+      hasEmail: !!doctor.email,
+      hasPendingVerification: doctor.emailOTPExpiry && new Date() < doctor.emailOTPExpiry
+    };
+
     res.json({
       success: true,
-      data: doctor,
+      data: doctorData,
     });
   } catch (error) {
     console.error('Error fetching profile:', error);
@@ -1183,8 +1193,15 @@ router.get('/profile', auth, async (req, res) => {
  * @swagger
  * /api/doctors/verify-email:
  *   put:
- *     summary: Verify doctor's email
+ *     summary: Legacy email verification endpoint (DEPRECATED)
+ *     description: |
+ *       This endpoint is deprecated. Please use the new OTP-based email verification:
+ *       1. POST /api/doctors/send-email-otp - Send OTP to email
+ *       2. POST /api/doctors/verify-email-otp - Verify OTP
+ *       
+ *       This endpoint now redirects to the new OTP system for security.
  *     tags: [Doctors]
+ *     deprecated: true
  *     security:
  *       - bearerAuth: []
  *     requestBody:
@@ -1198,51 +1215,102 @@ router.get('/profile', auth, async (req, res) => {
  *             properties:
  *               email:
  *                 type: string
+ *                 format: email
+ *                 description: Email address to verify
  *     responses:
  *       200:
- *         description: Email verification email sent
+ *         description: OTP sent to email for verification
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: "This endpoint is deprecated. OTP sent to your email for verification."
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     redirectTo:
+ *                       type: string
+ *                       example: "Please use POST /api/doctors/verify-email-otp to complete verification"
+ *                     email:
+ *                       type: string
+ *                       example: "doctor@example.com"
+ *                     otpSent:
+ *                       type: boolean
+ *                       example: true
+ *       400:
+ *         description: Invalid email or other validation errors
  *       401:
  *         description: Unauthorized
+ *       404:
+ *         description: Doctor not found
  */
 router.put('/verify-email', auth, async (req, res) => {
   try {
     const { email } = req.body;
     const doctorId = req.user.id;
 
-    // Find doctor
-    const doctor = await DoctorPersonal.findByPk(doctorId);
-
-    if (!doctor) {
-      return res.status(404).json({
+    if (!email) {
+      return res.status(400).json({
         success: false,
-        message: 'Doctor not found',
+        message: 'Email is required',
       });
     }
 
-    // Update email (in a real app, you would send a verification email)
-    await doctor.update({
-      email: email || doctor.email,
-    });
+    // Redirect to new OTP-based system for security
+    // This automatically sends OTP to the provided email
+    const otpRequest = {
+      body: { email, doctorId },
+      user: req.user
+    };
 
-    // For demo purposes, just mark it as verified
-    // In a real app, this would be done through a verification link
-    await doctor.update({
-      emailVerified: true,
-    });
+    // Mock response object to capture the OTP response
+    let otpResponse = null;
+    const mockRes = {
+      status: (code) => ({
+        json: (data) => {
+          otpResponse = { status: code, data };
+          return mockRes;
+        }
+      }),
+      json: (data) => {
+        otpResponse = { status: 200, data };
+        return mockRes;
+      }
+    };
 
-    res.json({
-      success: true,
-      message: 'Email verified successfully',
-      data: {
-        id: doctor.id,
-        email: doctor.email,
-        emailVerified: doctor.emailVerified,
-      },
-    });
+    // Call the new OTP controller
+    await emailVerificationController.sendEmailVerificationOTP(otpRequest, mockRes);
+
+    if (otpResponse && otpResponse.status === 200) {
+      return res.status(200).json({
+        success: true,
+        message: 'This endpoint is deprecated. OTP sent to your email for verification.',
+        data: {
+          ...otpResponse.data,
+          redirectTo: 'Please use POST /api/doctors/verify-email-otp to complete verification',
+          deprecated: true,
+          newEndpoints: {
+            sendOTP: 'POST /api/doctors/send-email-otp',
+            verifyOTP: 'POST /api/doctors/verify-email-otp'
+          }
+        },
+      });
+    } else {
+      return res.status(otpResponse?.status || 500).json(otpResponse?.data || {
+        success: false,
+        message: 'Failed to process email verification'
+      });
+    }
   } catch (error) {
     res.status(400).json({
       success: false,
-      message: 'Failed to verify email',
+      message: 'Failed to process email verification',
       error: error.message,
     });
   }
@@ -2204,5 +2272,301 @@ router.post('/language', auth, async (req, res) => {
     });
   }
 });
+
+// ============================================================
+// EMAIL VERIFICATION ROUTES
+// ============================================================
+
+/**
+ * @swagger
+ * /api/doctors/send-email-otp:
+ *   post:
+ *     summary: Send OTP to doctor's email for verification
+ *     tags: [Doctors - Email Verification]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - email
+ *               - doctorId
+ *             properties:
+ *               email:
+ *                 type: string
+ *                 format: email
+ *                 description: Email address to verify
+ *                 example: "doctor@example.com"
+ *               doctorId:
+ *                 type: integer
+ *                 description: Doctor's ID
+ *                 example: 1
+ *           example:
+ *             email: "doctor@example.com"
+ *             doctorId: 1
+ *     responses:
+ *       200:
+ *         description: OTP sent successfully or email already verified
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: "OTP sent successfully to your email"
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     email:
+ *                       type: string
+ *                       example: "doctor@example.com"
+ *                     otpSent:
+ *                       type: boolean
+ *                       example: true
+ *                     expiresAt:
+ *                       type: string
+ *                       format: date-time
+ *                       example: "2025-01-20T10:40:00.000Z"
+ *       400:
+ *         description: Invalid input or email already in use
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: false
+ *                 message:
+ *                   type: string
+ *                   example: "This email is already verified by another doctor"
+ *       403:
+ *         description: Forbidden - Can only verify own email
+ *       404:
+ *         description: Doctor not found
+ *       500:
+ *         description: Failed to send email
+ */
+router.post('/send-email-otp', auth, emailVerificationController.sendEmailVerificationOTP);
+
+/**
+ * @swagger
+ * /api/doctors/verify-email-otp:
+ *   post:
+ *     summary: Verify email OTP and mark email as verified
+ *     tags: [Doctors - Email Verification]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - email
+ *               - otp
+ *               - doctorId
+ *             properties:
+ *               email:
+ *                 type: string
+ *                 format: email
+ *                 description: Email address being verified
+ *                 example: "doctor@example.com"
+ *               otp:
+ *                 type: string
+ *                 pattern: '^[0-9]{6}$'
+ *                 description: 6-digit OTP received via email
+ *                 example: "123456"
+ *               doctorId:
+ *                 type: integer
+ *                 description: Doctor's ID
+ *                 example: 1
+ *           example:
+ *             email: "doctor@example.com"
+ *             otp: "123456"
+ *             doctorId: 1
+ *     responses:
+ *       200:
+ *         description: Email verified successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: "Email verified successfully"
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     doctorId:
+ *                       type: integer
+ *                       example: 1
+ *                     email:
+ *                       type: string
+ *                       example: "doctor@example.com"
+ *                     emailVerified:
+ *                       type: boolean
+ *                       example: true
+ *                     verifiedAt:
+ *                       type: string
+ *                       format: date-time
+ *                       example: "2025-01-20T10:35:00.000Z"
+ *       400:
+ *         description: Invalid OTP, expired OTP, or validation errors
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: false
+ *                 message:
+ *                   type: string
+ *                   examples:
+ *                     invalid_otp:
+ *                       value: "Invalid OTP. Please check and try again."
+ *                     expired_otp:
+ *                       value: "OTP has expired. Please request a new one."
+ *                     no_pending:
+ *                       value: "No pending email verification found. Please request a new OTP."
+ *       403:
+ *         description: Forbidden - Can only verify own email
+ *       404:
+ *         description: Doctor not found
+ *       500:
+ *         description: Internal server error
+ */
+router.post('/verify-email-otp', auth, emailVerificationController.verifyEmailOTP);
+
+/**
+ * @swagger
+ * /api/doctors/email-verification-status/{doctorId}:
+ *   get:
+ *     summary: Get email verification status for a doctor
+ *     tags: [Doctors - Email Verification]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: doctorId
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         description: Doctor's ID
+ *         example: 1
+ *     responses:
+ *       200:
+ *         description: Email verification status retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     doctorId:
+ *                       type: integer
+ *                       example: 1
+ *                     email:
+ *                       type: string
+ *                       nullable: true
+ *                       example: "doctor@example.com"
+ *                     emailVerified:
+ *                       type: boolean
+ *                       example: false
+ *                     hasPendingVerification:
+ *                       type: boolean
+ *                       example: true
+ *                     otpExpiresAt:
+ *                       type: string
+ *                       format: date-time
+ *                       nullable: true
+ *                       example: "2025-01-20T10:40:00.000Z"
+ *       403:
+ *         description: Forbidden - Can only check own status
+ *       404:
+ *         description: Doctor not found
+ *       500:
+ *         description: Internal server error
+ */
+router.get('/email-verification-status/:doctorId', auth, emailVerificationController.getEmailVerificationStatus);
+
+/**
+ * @swagger
+ * /api/doctors/resend-email-otp:
+ *   post:
+ *     summary: Resend email verification OTP
+ *     tags: [Doctors - Email Verification]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - doctorId
+ *             properties:
+ *               doctorId:
+ *                 type: integer
+ *                 description: Doctor's ID
+ *                 example: 1
+ *           example:
+ *             doctorId: 1
+ *     responses:
+ *       200:
+ *         description: OTP resent successfully or email already verified
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: "OTP resent successfully to your email"
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     email:
+ *                       type: string
+ *                       example: "doctor@example.com"
+ *                     otpSent:
+ *                       type: boolean
+ *                       example: true
+ *                     expiresAt:
+ *                       type: string
+ *                       format: date-time
+ *                       example: "2025-01-20T10:40:00.000Z"
+ *       400:
+ *         description: No email found or validation errors
+ *       403:
+ *         description: Forbidden - Can only resend OTP for own email
+ *       404:
+ *         description: Doctor not found
+ *       500:
+ *         description: Failed to resend email
+ */
+router.post('/resend-email-otp', auth, emailVerificationController.resendEmailVerificationOTP);
 
 module.exports = router;
