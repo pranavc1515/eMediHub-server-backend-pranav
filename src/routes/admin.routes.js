@@ -325,127 +325,7 @@
  *         description: Consultation report generated
  */
 
-/**
- * @swagger
- * /api/admin/prescriptions:
- *   get:
- *     summary: Get all prescriptions with filtering
- *     tags: [Admin]
- *     security:
- *       - bearerAuth: []
- *     parameters:
- *       - in: query
- *         name: page
- *         schema:
- *           type: integer
- *           default: 1
- *       - in: query
- *         name: limit
- *         schema:
- *           type: integer
- *           default: 10
- *       - in: query
- *         name: doctorId
- *         schema:
- *           type: integer
- *       - in: query
- *         name: patientId
- *         schema:
- *           type: integer
- *       - in: query
- *         name: startDate
- *         schema:
- *           type: string
- *           format: date
- *       - in: query
- *         name: endDate
- *         schema:
- *           type: string
- *           format: date
- *       - in: query
- *         name: prescriptionType
- *         schema:
- *           type: string
- *           enum: [file, custom]
- *     responses:
- *       200:
- *         description: Paginated prescription list
- */
 
-/**
- * @swagger
- * /api/admin/prescriptions/audit:
- *   get:
- *     summary: Audit prescription patterns
- *     tags: [Admin]
- *     security:
- *       - bearerAuth: []
- *     parameters:
- *       - in: query
- *         name: startDate
- *         schema:
- *           type: string
- *           format: date
- *       - in: query
- *         name: endDate
- *         schema:
- *           type: string
- *           format: date
- *       - in: query
- *         name: doctorId
- *         schema:
- *           type: integer
- *     responses:
- *       200:
- *         description: Prescription audit results
- */
-
-/**
- * @swagger
- * /api/admin/prescriptions/suspicious:
- *   get:
- *     summary: Flag suspicious prescriptions
- *     tags: [Admin]
- *     security:
- *       - bearerAuth: []
- *     responses:
- *       200:
- *         description: List of flagged suspicious prescriptions
- */
-
-/**
- * @swagger
- * /api/admin/prescriptions/report:
- *   get:
- *     summary: Generate prescription report
- *     tags: [Admin]
- *     security:
- *       - bearerAuth: []
- *     parameters:
- *       - in: query
- *         name: startDate
- *         schema:
- *           type: string
- *           format: date
- *       - in: query
- *         name: endDate
- *         schema:
- *           type: string
- *           format: date
- *       - in: query
- *         name: doctorId
- *         schema:
- *           type: integer
- *       - in: query
- *         name: format
- *         schema:
- *           type: string
- *           enum: [json, csv]
- *           default: json
- *     responses:
- *       200:
- *         description: Prescription report generated
- */
 
 /**
  * @swagger
@@ -1181,7 +1061,7 @@ const router = express.Router();
 // Controllers
 const adminController = require('../controllers/admin.controller');
 const adminConsultationController = require('../controllers/admin.consultation.controller');
-const adminPrescriptionController = require('../controllers/admin.prescription.controller');
+
 const adminAnalyticsController = require('../controllers/admin.analytics.controller');
 const adminConfigController = require('../controllers/admin.config.controller');
 const adminSpecializationController = require('../controllers/admin.specialization.controller');
@@ -1212,11 +1092,7 @@ router.get('/consultations/statistics', adminConsultationController.getConsultat
 router.patch('/consultations/:id', adminConsultationController.updateConsultationStatus);
 router.get('/consultations/report', adminConsultationController.generateConsultationReport);
 
-// Prescription Management
-router.get('/prescriptions', adminPrescriptionController.getAllPrescriptions);
-router.get('/prescriptions/audit', adminPrescriptionController.auditPrescriptionPatterns);
-router.get('/prescriptions/suspicious', adminPrescriptionController.flagSuspiciousPrescriptions);
-router.get('/prescriptions/report', adminPrescriptionController.generatePrescriptionReport);
+
 
 // Analytics and Reporting
 router.get('/analytics/patient-demographics', adminAnalyticsController.getPatientDemographics);

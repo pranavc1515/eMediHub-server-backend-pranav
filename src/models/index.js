@@ -11,7 +11,7 @@ const { DoctorPersonal, DoctorProfessional } = require('./doctor.model');
 const Patient = require('./patient.model');
 const Consultation = require('./consultation.model');
 const PatientQueue = require('./patientQueue.model');
-const Prescription = require('./prescription.model');
+
 const { User } = require('./user.model');
 
 // Set custom hooks for models

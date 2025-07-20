@@ -1,6 +1,6 @@
 const { DoctorPersonal, DoctorProfessional } = require('../models/doctor.model');
 const Consultation = require('../models/consultation.model');
-const Prescription = require('../models/prescription.model');
+
 const { Op, Sequelize } = require('sequelize');
 const patientController = require('./patient.controller');
 
@@ -24,7 +24,7 @@ exports.getPatientDemographics = async (req, res) => {
         }
 
         const { PatientIN } = require('../models/patientIN.model');
-        
+
         // Get total patients count
         const totalPatients = await PatientIN.count();
 
@@ -201,18 +201,7 @@ exports.getDoctorPerformanceMetrics = async (req, res) => {
                 ? totalDuration / consultationsWithDuration.length
                 : 0;
 
-            // Prescriptions issued
-            const prescriptionsIssued = await Prescription.count({
-                where: {
-                    doctorId: doctor.id,
-                    createdAt: dateFilter.scheduledDate ? {
-                        [Op.between]: [
-                            new Date(dateFilter.scheduledDate[Op.gte] || dateFilter.scheduledDate[Op.between][0]),
-                            new Date(dateFilter.scheduledDate[Op.lte] || dateFilter.scheduledDate[Op.between][1])
-                        ]
-                    } : undefined
-                }
-            });
+
 
             return {
                 doctorId: doctor.id,
@@ -226,8 +215,7 @@ exports.getDoctorPerformanceMetrics = async (req, res) => {
                     completionRate: totalConsultations > 0
                         ? parseFloat(((completedConsultations / totalConsultations) * 100).toFixed(1))
                         : 0,
-                    averageDurationMinutes: parseFloat(averageDuration.toFixed(1)),
-                    prescriptionsIssued
+                    averageDurationMinutes: parseFloat(averageDuration.toFixed(1))
                 }
             };
         }));

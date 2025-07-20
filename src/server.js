@@ -20,7 +20,7 @@ require('./models/patientIN.model');
 require('./models/doctor.model');
 require('./models/consultation.model');
 require('./models/patientQueue.model');
-require('./models/prescription.model');
+
 require('./models/user.model');
 
 // Load routes
@@ -37,7 +37,7 @@ const adminRoutes = require('./routes/admin.routes');
 const videoRoutes = require('./routes/video.routes');
 const consultationRoutes = require('./routes/consultation.routes');
 const paymentRoutes = require('./routes/payment.routes');
-const prescriptionRoutes = require('./routes/prescription.routes');
+
 const patientQueueRoutes = require('./routes/patientQueue.routes');
 const reportsRoutes = require('./routes/reports.routes');
 const familyRoutes = require('./routes/family.routes');
@@ -117,7 +117,7 @@ app.use('/api/admin', adminRoutes);
 app.use('/api/video', videoRoutes);
 app.use('/api/consultation', consultationRoutes);
 app.use('/api/payments', paymentRoutes);
-app.use('/api/prescriptions', prescriptionRoutes);
+
 app.use('/api/patientQueue', patientQueueRoutes);
 app.use('/api/reports', reportsRoutes);
 app.use('/api/family', familyRoutes);

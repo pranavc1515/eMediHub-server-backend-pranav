@@ -2,7 +2,7 @@ const { Sequelize, Op } = require('sequelize');
 const { PatientIN } = require('../models/patientIN.model');
 const { DoctorPersonal } = require('../models/doctor.model');
 const { Consultation } = require('../models/consultation.model');
-const { Prescription } = require('../models/prescription.model');
+
 const { Specialization } = require('../models/specialization.model');
 const { SystemConfig } = require('../models/systemConfig.model');
 const { Content } = require('../models/content.model');
@@ -239,95 +239,7 @@ const seedConsultations = async (count = 50) => {
     }
 };
 
-// Seed prescriptions
-const seedPrescriptions = async (count = 40) => {
-    try {
-        const existingCount = await Prescription.count();
-        if (existingCount >= count) {
-            console.log(`${existingCount} prescriptions already exist, skipping prescription seeding`);
-            return;
-        }
 
-        // Get completed consultations
-        const completedConsultations = await Consultation.findAll({
-            where: { status: 'completed' },
-            include: [
-                { model: PatientIN, as: 'patient' },
-                { model: DoctorPersonal, as: 'doctor' }
-            ]
-        });
-
-        if (completedConsultations.length === 0) {
-            console.log('No completed consultations found. Please seed consultations first.');
-            return;
-        }
-
-        const prescriptionTypes = ['custom', 'file'];
-        const medicines = [
-            { name: 'Paracetamol', dosage: '500mg', frequency: 'TID', duration: '5 days' },
-            { name: 'Amoxicillin', dosage: '250mg', frequency: 'BID', duration: '7 days' },
-            { name: 'Ibuprofen', dosage: '400mg', frequency: 'TID', duration: '3 days' },
-            { name: 'Cetirizine', dosage: '10mg', frequency: 'OD', duration: '5 days' },
-            { name: 'Omeprazole', dosage: '20mg', frequency: 'OD', duration: '14 days' },
-            { name: 'Azithromycin', dosage: '500mg', frequency: 'OD', duration: '3 days' },
-            { name: 'Montelukast', dosage: '10mg', frequency: 'OD', duration: '30 days' },
-            { name: 'Metformin', dosage: '500mg', frequency: 'BID', duration: '30 days' },
-            { name: 'Atorvastatin', dosage: '10mg', frequency: 'OD', duration: '30 days' },
-            { name: 'Losartan', dosage: '50mg', frequency: 'OD', duration: '30 days' }
-        ];
-
-        const prescriptionsToCreate = Math.min(count - existingCount, completedConsultations.length);
-        console.log(`Creating ${prescriptionsToCreate} prescriptions...`);
-
-        for (let i = 0; i < prescriptionsToCreate; i++) {
-            const consultation = completedConsultations[i % completedConsultations.length];
-            const prescriptionType = getRandomItem(prescriptionTypes);
-
-            // Generate random medicines
-            const medicineCount = getRandomNumber(1, 5);
-            const prescribedMedicines = [];
-            for (let j = 0; j < medicineCount; j++) {
-                const medicine = { ...getRandomItem(medicines) };
-                medicine.instructions = getRandomItem([
-                    'Take after food',
-                    'Take before food',
-                    'Take with water',
-                    'Avoid alcohol',
-                    'Avoid driving after taking this medicine'
-                ]);
-                prescribedMedicines.push(medicine);
-            }
-
-            // Create prescription
-            await Prescription.create({
-                consultationId: consultation.id,
-                patientId: consultation.patientId,
-                doctorId: consultation.doctorId,
-                prescriptionType,
-                medicines: prescribedMedicines,
-                customPrescription: prescriptionType === 'custom' ?
-                    `Prescription for ${consultation.patient.name} by ${consultation.doctor.fullName}` : null,
-                prescriptionUrl: prescriptionType === 'file' ?
-                    `https://emediHub.com/prescriptions/sample-${i}.pdf` : null,
-                instructions: 'Take medicines as prescribed. Follow up after 7 days.',
-                diagnosis: getRandomItem([
-                    'Common Cold',
-                    'Viral Fever',
-                    'Bacterial Infection',
-                    'Allergic Rhinitis',
-                    'Gastritis',
-                    'Hypertension',
-                    'Diabetes Mellitus',
-                    'Migraine'
-                ])
-            });
-        }
-
-        console.log(`${prescriptionsToCreate} prescriptions created successfully`);
-    } catch (error) {
-        console.error('Error seeding prescriptions:', error);
-    }
-};
 
 // Seed system configurations
 const seedSystemConfigs = async () => {
@@ -450,13 +362,7 @@ const seedContent = async () => {
                 status: 'published',
                 order: 3
             },
-            {
-                type: 'faq',
-                title: 'How do I access my prescription?',
-                content: 'You can access your prescriptions from the "My Prescriptions" section in your patient dashboard.',
-                status: 'published',
-                order: 4
-            },
+
             {
                 type: 'policy',
                 title: 'Privacy Policy',
@@ -501,7 +407,7 @@ const seedContent = async () => {
                 type: 'about',
                 title: 'About eMediHub',
                 content: `<h1>About eMediHub</h1>
-        <p>eMediHub is a comprehensive healthcare platform that connects patients with healthcare providers for online consultations, prescription management, and health record maintenance.</p>
+        <p>eMediHub is a comprehensive healthcare platform that connects patients with healthcare providers for online consultations and health record maintenance.</p>
         <h2>Our Mission</h2>
         <p>Our mission is to make healthcare accessible, affordable, and convenient for everyone through technology.</p>
         <h2>Our Team</h2>
@@ -516,8 +422,7 @@ const seedContent = async () => {
         <p>eMediHub offers a range of healthcare services to meet your needs.</p>
         <h2>Online Consultations</h2>
         <p>Connect with doctors from the comfort of your home through video, audio, or chat consultations.</p>
-        <h2>Prescription Management</h2>
-        <p>Get digital prescriptions and manage your medications easily.</p>
+
         <h2>Health Records</h2>
         <p>Store and access your health records securely in one place.</p>`,
                 status: 'published',
@@ -544,7 +449,7 @@ const seedAll = async () => {
     await seedPatients();
     await seedDoctors();
     await seedConsultations();
-    await seedPrescriptions();
+
     await seedSystemConfigs();
     await seedContent();
 

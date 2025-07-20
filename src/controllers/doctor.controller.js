@@ -10,7 +10,7 @@ const sequelize = require('../config/database');
 // Import related models for delete function
 const Consultation = require('../models/consultation.model');
 const PatientQueue = require('../models/patientQueue.model');
-const Prescription = require('../models/prescription.model');
+
 
 // Utility function to generate a random 6-digit OTP
 const generateOTP = () => {
