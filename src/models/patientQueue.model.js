@@ -13,9 +13,15 @@ const PatientQueue = sequelize.define(
       primaryKey: true,
       autoIncrement: true,
     },
+    userId: {
+      type: DataTypes.INTEGER,
+      allowNull: false,
+      comment: 'Platform owner/user ID who initiated the consultation'
+    },
     patientId: {
       type: DataTypes.INTEGER,
       allowNull: false,
+      comment: 'Patient ID for consultation (can be userId or family member)',
       // Only add foreign key constraint if NOT using microservice
       ...(ENABLE_PATIENT_MICROSERVICE ? {} : {
         references: {
@@ -23,6 +29,16 @@ const PatientQueue = sequelize.define(
           key: 'id',
         },
       }),
+    },
+    patientName: {
+      type: DataTypes.STRING,
+      allowNull: false,
+      comment: 'Patient full name for display in queue'
+    },
+    patientPhone: {
+      type: DataTypes.STRING,
+      allowNull: true,
+      comment: 'Patient phone number for display in queue'
     },
     doctorId: {
       type: DataTypes.INTEGER,
