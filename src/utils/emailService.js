@@ -1,33 +1,41 @@
 const nodemailer = require('nodemailer');
+require('dotenv').config();
 
 // Create transporter using SMTP configuration from environment variables
 const createTransporter = () => {
-    return nodemailer.createTransport({
-        host: process.env.SMTP_HOST,
-        port: parseInt(process.env.SMTP_PORT),
-        secure: process.env.SMTP_SECURE === 'true', // true for 465, false for other ports
-        auth: {
-            user: process.env.SMTP_USER,
-            pass: process.env.SMTP_PASS,
-        },
-    });
+  return nodemailer.createTransport({
+    host: process.env.SMTP_HOST,
+    port: parseInt(process.env.SMTP_PORT),
+    secure: process.env.SMTP_SECURE === 'true', // true for 465, false for other ports
+    auth: {
+      user: process.env.SMTP_USER,
+      pass: process.env.SMTP_PASS,
+    },
+    tls: {
+      rejectUnauthorized: false
+    },
+    requireTLS: true,
+    logger: false,
+    debug: false,
+    family: 4 // Force IPv4
+  });
 };
 
 // Generate 6-digit OTP
 const generateEmailOTP = () => {
-    return Math.floor(100000 + Math.random() * 900000).toString();
+  return Math.floor(100000 + Math.random() * 900000).toString();
 };
 
 // Send email OTP to doctor
 const sendEmailOTP = async (email, otp, doctorName = 'Doctor') => {
-    try {
-        const transporter = createTransporter();
+  try {
+    const transporter = createTransporter();
 
-        const mailOptions = {
-            from: `${process.env.FROM_NAME} <${process.env.SMTP_FROM}>`,
-            to: email,
-            subject: 'Email Verification - eMediHub',
-            html: `
+    const mailOptions = {
+      from: `${process.env.FROM_NAME} <${process.env.SMTP_FROM}>`,
+      to: email,
+      subject: 'Email Verification - eMediHub',
+      html: `
         <!DOCTYPE html>
         <html>
         <head>
@@ -125,7 +133,7 @@ const sendEmailOTP = async (email, otp, doctorName = 'Doctor') => {
         </body>
         </html>
       `,
-            text: `
+      text: `
         Hello ${doctorName},
         
         Thank you for joining eMediHub! Your email verification code is: ${otp}
@@ -137,38 +145,38 @@ const sendEmailOTP = async (email, otp, doctorName = 'Doctor') => {
         Best regards,
         eMediHub Team
       `
-        };
+    };
 
-        const info = await transporter.sendMail(mailOptions);
+    const info = await transporter.sendMail(mailOptions);
 
-        console.log('Email sent successfully:', info.messageId);
-        return {
-            success: true,
-            messageId: info.messageId,
-            message: 'OTP sent successfully to your email'
-        };
+    console.log('Email sent successfully:', info.messageId);
+    return {
+      success: true,
+      messageId: info.messageId,
+      message: 'OTP sent successfully to your email'
+    };
 
-    } catch (error) {
-        console.error('Error sending email:', error);
-        throw new Error(`Failed to send email: ${error.message}`);
-    }
+  } catch (error) {
+    console.error('Error sending email:', error);
+    throw new Error(`Failed to send email: ${error.message}`);
+  }
 };
 
 // Test email configuration
 const testEmailConfiguration = async () => {
-    try {
-        const transporter = createTransporter();
-        await transporter.verify();
-        console.log('✅ Email configuration is valid');
-        return true;
-    } catch (error) {
-        console.error('❌ Email configuration error:', error);
-        return false;
-    }
+  try {
+    const transporter = createTransporter();
+    await transporter.verify();
+    console.log('✅ Email configuration is valid');
+    return true;
+  } catch (error) {
+    console.error('❌ Email configuration error:', error);
+    return false;
+  }
 };
 
 module.exports = {
-    sendEmailOTP,
-    generateEmailOTP,
-    testEmailConfiguration
+  sendEmailOTP,
+  generateEmailOTP,
+  testEmailConfiguration
 }; 
