@@ -7,7 +7,7 @@ const patientINController = require('../controllers/patientIN.controller');
  * /api/patients/register-new:
  *   post:
  *     summary: Register a new patient
- *     tags: [PatientsIN]
+ *     tags: [PatientsIN (Optional)]
  *     requestBody:
  *       required: true
  *       content:
@@ -65,7 +65,7 @@ router.post('/register-new', async (req, res) => {
  * /api/patients/validate-otp:
  *   post:
  *     summary: Validate OTP for patient authentication
- *     tags: [PatientsIN]
+ *     tags: [PatientsIN (Optional)]
  *     requestBody:
  *       required: true
  *       content:
@@ -112,7 +112,7 @@ router.post('/validate-otp', async (req, res) => {
  * /api/patients/checkUserExists:
  *   post:
  *     summary: Check if patient exists by phone number
- *     tags: [PatientsIN]
+ *     tags: [PatientsIN (Optional)]
  *     requestBody:
  *       required: true
  *       content:
@@ -156,7 +156,7 @@ router.post('/checkUserExists', async (req, res) => {
  * /api/patients/do-login:
  *   post:
  *     summary: Login a patient (send OTP)
- *     tags: [PatientsIN]
+ *     tags: [PatientsIN (Optional)]
  *     requestBody:
  *       required: true
  *       content:
@@ -201,7 +201,7 @@ router.post('/do-login', async (req, res) => {
  * /api/patients/record-personal-details:
  *   put:
  *     summary: Update patient's personal details
- *     tags: [PatientsIN]
+ *     tags: [PatientsIN (Optional)]
  *     security:
  *       - bearerAuth: []
  *     requestBody:
@@ -271,7 +271,7 @@ router.put('/record-personal-details', async (req, res) => {
  * /api/patients/profile-details:
  *   get:
  *     summary: Get patient's profile details
- *     tags: [PatientsIN]
+ *     tags: [PatientsIN (Optional)]
  *     security:
  *       - bearerAuth: []
  *     responses:
@@ -308,7 +308,7 @@ router.get('/profile-details', async (req, res) => {
  * /api/patients/medical-details:
  *   get:
  *     summary: Get patient's medical details
- *     tags: [PatientsIN]
+ *     tags: [PatientsIN (Optional)]
  *     security:
  *       - bearerAuth: []
  *     responses:
@@ -345,7 +345,7 @@ router.get('/medical-details', async (req, res) => {
  * /api/patients/medical-details:
  *   post:
  *     summary: Update patient's medical details
- *     tags: [PatientsIN]
+ *     tags: [PatientsIN (Optional)]
  *     security:
  *       - bearerAuth: []
  *     requestBody:
@@ -404,7 +404,7 @@ router.post('/medical-details', async (req, res) => {
  * /api/patients/email-verify:
  *   put:
  *     summary: Verify patient's email
- *     tags: [PatientsIN]
+ *     tags: [PatientsIN (Optional)]
  *     security:
  *       - bearerAuth: []
  *     requestBody:
@@ -460,7 +460,7 @@ router.put('/email-verify', async (req, res) => {
  * /api/patients/do-delete-account:
  *   delete:
  *     summary: Delete patient account
- *     tags: [PatientsIN]
+ *     tags: [PatientsIN (Optional)]
  *     security:
  *       - bearerAuth: []
  *     responses:
@@ -497,7 +497,7 @@ router.delete('/do-delete-account', async (req, res) => {
  * /api/patients/video-price:
  *   get:
  *     summary: Get video consultation pricing
- *     tags: [PatientsIN]
+ *     tags: [PatientsIN (Optional)]
  *     security:
  *       - bearerAuth: []
  *     responses:
@@ -536,7 +536,7 @@ router.get('/video-price', async (req, res) => {
  * /api/patients/doctor-price/{doctorId}:
  *   get:
  *     summary: Get doctor's consultation price
- *     tags: [PatientsIN]
+ *     tags: [PatientsIN (Optional)]
  *     security:
  *       - bearerAuth: []
  *     parameters:

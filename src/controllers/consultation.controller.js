@@ -100,7 +100,9 @@ const getPatientDataForDisplay = async (
   try {
     // If userId is provided and different from patientId, use family API
     if (userId && parseInt(userId) !== parseInt(patientId)) {
-      console.log(`Fetching family member data for patient ${patientId} under user ${userId}`);
+      console.log(
+        `Fetching family member data for patient ${patientId} under user ${userId}`
+      );
       try {
         const { getFamilyMemberData } = require('./family.controller');
         const familyMemberData = await getFamilyMemberData(
@@ -127,7 +129,7 @@ const getPatientDataForDisplay = async (
           },
           order: [['createdAt', 'DESC']], // Get most recent entry
         });
-        
+
         if (queueData && queueData.patientName) {
           console.log(`Found patient data in queue for ${patientId}`);
           return {
@@ -165,7 +167,7 @@ const getPatientDataForDisplay = async (
         },
         order: [['createdAt', 'DESC']], // Get most recent entry
       });
-      
+
       if (queueData && queueData.patientName) {
         console.log(`Found patient data in queue for ${patientId}`);
         return {
@@ -353,11 +355,11 @@ const startConsultation = async (req, res) => {
     });
 
     // Import socket utilities
-    const {
-      getDoctorSocketId,
-      getPatientSocketId,
-    } = require('../socket/socketHandlers');
-    const { io } = require('../socket/socket');
+    // const {
+    //   getDoctorSocketId,
+    //   getPatientSocketId,
+    // } = require('../socket/socketHandlers');
+    // const { io } = require('../socket/socket');
 
     // Recalculate positions for remaining waiting patients
     const waitingPatients = await PatientQueue.findAll({
@@ -397,6 +399,7 @@ const startConsultation = async (req, res) => {
 
     // Notify user that consultation has started
     const userSocketId = getUserSocketId(queueEntry.userId);
+    console.log('⚠️⚠️⚠️⚠️⚠️', userSocketId, queueEntry.userId);
     if (userSocketId) {
       const payload = {
         roomName: queueEntry.roomName,
@@ -461,167 +464,6 @@ const startConsultation = async (req, res) => {
       success: false,
       error: 'Internal server error',
       message: error.message,
-    });
-  }
-};
-
-// Start Next Consultation from doctor side
-const NextConsultation = async (req, res) => {
-  try {
-    const { doctorId } = req.body;
-
-    if (!doctorId) {
-      return res.status(400).json({ message: 'doctorId is required' });
-    }
-
-    const doctorSocketId = getDoctorSocketId(doctorId);
-    if (!doctorSocketId) {
-      return res.status(404).json({ message: 'Doctor socket not found' });
-    }
-
-    // Find next waiting patient
-    const nextPatient = await PatientQueue.findOne({
-      where: {
-        doctorId,
-        status: 'waiting',
-      },
-      order: [['position', 'ASC']],
-    });
-
-    if (!nextPatient) {
-      return res.status(200).json({ message: 'No waiting patients' });
-    }
-
-    // Validate patient using external API (if microservice) or local DB
-    const authToken = req.header('Authorization')?.replace('Bearer ', '');
-    try {
-      await validatePatientExternally(
-        nextPatient.patientId,
-        nextPatient.userId,
-        authToken
-      );
-      console.log(
-        `Next patient ${nextPatient.patientId} validated successfully for user ${nextPatient.userId}`
-      );
-    } catch (error) {
-      console.error(`Next patient validation failed: ${error.message}`);
-      return res.status(404).json({
-        success: false,
-        message: 'Next patient not found or not active',
-        error: error.message,
-      });
-    }
-
-    // Create consultation
-    const consultation = await Consultation.create({
-      patientId: nextPatient.patientId,
-      doctorId,
-      scheduledDate: new Date(),
-      startTime: new Date(),
-      endTime: new Date(Date.now() + 15 * 60000),
-      status: 'ongoing',
-      consultationType: 'video',
-      roomName: nextPatient.roomName,
-    });
-
-    // Update patient queue entry
-    await nextPatient.update({
-      status: 'in_consultation',
-      consultationId: consultation.id,
-    });
-
-    // Notify the invited patient (optional, no INVITE_PATIENT used as per instruction)
-    const patientSocketId = getPatientSocketId(nextPatient.patientId);
-    if (patientSocketId) {
-      io.to(patientSocketId).emit('CONSULTATION_STARTED', {
-        consultationId: consultation.id,
-        roomName: nextPatient.roomName,
-      });
-    }
-
-    // Update positions for remaining patients
-    await PatientQueue.increment('position', {
-      where: {
-        doctorId,
-        status: 'waiting',
-        position: { [Op.gt]: nextPatient.position },
-      },
-    });
-
-    // Fetch updated queue
-    const updatedQueue = await PatientQueue.findAll({
-      where: {
-        doctorId,
-        status: 'waiting',
-      },
-    });
-
-    // Notify remaining patients
-    updatedQueue.forEach((patientEntry) => {
-      const patientId =
-        patientEntry.patientId ||
-        (patientEntry.dataValues && patientEntry.dataValues.patientId);
-      if (!patientId) return;
-
-      const socketId = getPatientSocketId(patientId);
-      if (socketId) {
-        io.to(socketId).emit('POSITION_UPDATE', {
-          position: patientEntry.position,
-          estimatedWait: `${(patientEntry.position - 1) * 10} mins`,
-        });
-      }
-    });
-
-    return res.status(200).json({
-      message: 'Consultation started successfully',
-      consultationId: consultation.id,
-      roomName: nextPatient.roomName,
-    });
-  } catch (error) {
-    console.error('Error in startConsultation:', error);
-    return res.status(500).json({ message: 'Failed to start consultation' });
-  }
-};
-
-// Cancel an upcoming consultation
-const cancelConsultation = async (req, res) => {
-  try {
-    const patientId = req.user.id;
-    const { id } = req.params;
-    const { cancelReason } = req.body;
-
-    const consultation = await Consultation.findOne({
-      where: {
-        id,
-        patientId,
-        status: 'scheduled',
-      },
-    });
-
-    if (!consultation) {
-      return res.status(404).json({
-        success: false,
-        message: 'Consultation not found or cannot be cancelled',
-      });
-    }
-
-    // Update consultation status
-    await consultation.update({
-      status: 'cancelled',
-      cancelReason,
-      cancelledBy: 'patient',
-    });
-
-    res.status(200).json({
-      success: true,
-      message: 'Consultation cancelled successfully',
-      data: consultation,
-    });
-  } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: 'Error cancelling consultation',
-      error: error.message,
     });
   }
 };
@@ -908,7 +750,7 @@ const getPatientConsultationHistory = async (req, res) => {
     try {
       console.log('Fetching family tree data for patient:', patientId);
       const familyTreeResponse = await getFamilyTreeData(patientId, authToken);
-      
+
       if (familyTreeResponse?.data?.familyTree) {
         // Helper function to extract IDs from family tree
         const extractIds = (members) => {
@@ -941,17 +783,17 @@ const getPatientConsultationHistory = async (req, res) => {
     const totalCount = await Consultation.count({
       where: {
         patientId: {
-          [Op.in]: familyMemberIds
-        }
-      }
+          [Op.in]: familyMemberIds,
+        },
+      },
     });
 
     // Fetch consultations with doctor info for patient and family members
     const consultations = await Consultation.findAll({
       where: {
         patientId: {
-          [Op.in]: familyMemberIds
-        }
+          [Op.in]: familyMemberIds,
+        },
       },
       include: [
         {
@@ -964,7 +806,7 @@ const getPatientConsultationHistory = async (req, res) => {
               attributes: ['specialization', 'yearsOfExperience'],
             },
           ],
-        }
+        },
       ],
       order: [['createdAt', 'DESC']],
       offset,
@@ -984,16 +826,20 @@ const getPatientConsultationHistory = async (req, res) => {
           );
 
           // Add relationship info
-          const isMainPatient = parseInt(consultationData.patientId) === parseInt(patientId);
+          const isMainPatient =
+            parseInt(consultationData.patientId) === parseInt(patientId);
           return {
             ...consultationData,
             patient: {
               ...patientData,
-              relationship: isMainPatient ? 'Self' : 'Family Member'
-            }
+              relationship: isMainPatient ? 'Self' : 'Family Member',
+            },
           };
         } catch (error) {
-          console.warn(`Failed to get patient data for consultation ${consultation.id}:`, error.message);
+          console.warn(
+            `Failed to get patient data for consultation ${consultation.id}:`,
+            error.message
+          );
           return consultationData;
         }
       })
@@ -1420,10 +1266,8 @@ const rejoinConsultation = async (req, res) => {
 
 module.exports = {
   startConsultation,
-  NextConsultation,
   getDoctorConsultationHistory,
   getPatientConsultationHistory,
-  cancelConsultation,
   endConsultationByDoctor,
   checkConsultationStatus,
   rejoinConsultation,

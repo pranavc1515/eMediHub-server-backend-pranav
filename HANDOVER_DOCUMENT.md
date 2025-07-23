@@ -235,128 +235,170 @@ specializations {
 
 ```http
 POST /api/auth/register          # Register new patient
-POST /api/auth/login             # Patient login
-POST /api/auth/register-admin    # Register admin user
-POST /api/auth/login-admin       # Admin login
+POST /api/auth/login             # Login patient
+POST /api/auth/register-admin    # Register a new admin user
+POST /api/auth/login-admin       # Login as admin
 ```
 
-### Patient APIs (`/api/patients`)
+### Admin APIs (`/api/admin`)
 
 ```http
-# Registration & Login (Proxy to external service)
-POST /api/patients/register-new      # Register new patient (phone-based)
-POST /api/patients/do-login          # Login with phone/username
-POST /api/patients/verify-otp        # Verify OTP for login
-POST /api/patients/resend-otp        # Resend OTP
-
-# Profile Management (Proxy to external service)
-GET /api/patients/profile            # Get patient profile
-PUT /api/patients/profile            # Update patient profile
-GET /api/patients/family-members     # Get family members
-POST /api/patients/family-members    # Add family member
-PUT /api/patients/family-members/:id # Update family member
-DELETE /api/patients/family-members/:id # Remove family member
-
-# Health Records (Proxy to external service)
-GET /api/patients/health-records     # Get health records
-POST /api/patients/health-records    # Add health record
-PUT /api/patients/health-records/:id # Update health record
-DELETE /api/patients/health-records/:id # Delete health record
+GET /api/admin/dashboard                            # Get admin dashboard statistics
+GET /api/admin/doctors                              # List doctors (filterable)
+PUT /api/admin/doctors/{id}                         # Update doctor's profile
+PATCH /api/admin/doctors/{id}/verify                # Verify or unverify a doctor
+GET /api/admin/patients                             # List patients
+GET /api/admin/users                                # List users
+PATCH /api/admin/patients/{id}/status               # Update patient active status
+GET /api/admin/consultations                        # Get all consultations with filtering options
+GET /api/admin/consultations/statistics             # Get consultation statistics
+PATCH /api/admin/consultations/{id}                 # Update consultation status (cancel or reschedule)
+GET /api/admin/consultations/report                 # Generate consultation report
+GET /api/admin/analytics/patient-demographics       # Get patient demographics analysis
+GET /api/admin/analytics/doctor-performance         # Get doctor performance metrics
+GET /api/admin/analytics/system-usage               # Get system usage statistics
+GET /api/admin/analytics/revenue-report             # Generate revenue report
+GET /api/admin/settings                             # Get all system settings
+POST /api/admin/settings                            # Update system settings
+GET /api/admin/notification-templates               # Get notification templates
+POST /api/admin/notification-templates              # Update notification template
+POST /api/admin/fee-structure                       # Set fee structure
+POST /api/admin/working-hours                       # Set working hours
+GET /api/admin/specializations                      # Get all specializations
+POST /api/admin/specializations                     # Create new specialization
+GET /api/admin/specializations/{id}                 # Get specialization by ID
+PUT /api/admin/specializations/{id}                 # Update specialization
+DELETE /api/admin/specializations/{id}              # Delete specialization
+GET /api/admin/specializations/{id}/doctors         # Get doctors by specialization
+PATCH /api/admin/specializations/{id}/fee           # Set consultation fee for specialization
+GET /api/admin/content                              # Get all content
+POST /api/admin/content                             # Create new content
+GET /api/admin/content/{idOrSlug}                   # Get content by ID or slug
+PUT /api/admin/content/{id}                         # Update content
+DELETE /api/admin/content/{id}                      # Delete content
+POST /api/admin/content/faqs                        # Manage FAQs (update or reorder)
+POST /api/admin/content/policies/{slug}             # Update policy
+POST /api/admin/content/help/{slug}                 # Update help documentation
 ```
 
-### Patient Consultation APIs (`/api/consultation`)
+### Consultation APIs (`/api/consultation`)
 
 ```http
-POST /api/consultation/book          # Book video consultation
-GET /api/consultation/history        # Get consultation history
-GET /api/consultation/:id            # Get consultation details
-DELETE /api/consultation/:id/cancel  # Cancel consultation
+POST /api/consultation/startConsultation        # Start or rejoin a consultation
+POST /api/consultation/checkStatus              # Check consultation/queue status (auto‑join support)
+POST /api/consultation/rejoin                   # Rejoin ongoing consultation
+POST /api/consultation/endConsultation          # End a consultation (doctor only)
+```
+
+### Consultation History APIs (`/api/consultation`)
+
+```http
+GET /api/consultation/doctor/{doctorId}/history       # Get consultation history for a doctor
+GET /api/consultation/patient/{patientId}/history     # Get consultation history for a patient and their family
 ```
 
 ### Doctor APIs (`/api/doctors`)
 
 ```http
-# Registration & Authentication
-POST /api/doctors/register           # Register with phone number
-POST /api/doctors/login              # Login for existing doctor
-POST /api/doctors/verify-otp         # Verify OTP during registration/login
-POST /api/doctors/resend-otp         # Resend OTP
-
-# Profile Management
-GET /api/doctors/profile             # Get complete doctor profile
-PUT /api/doctors/personal-details/:id # Update personal information
-PUT /api/doctors/professional-details/:id # Update professional information
-POST /api/doctors/upload-profile-photo # Upload profile photo
-POST /api/doctors/upload-certificates # Upload professional certificates
-
-# VDC (Video/Digital Consultation) Management
-GET /api/doctors/vdc-status          # Check VDC opt-in status
-GET /api/doctors/vdc-settings        # Get VDC settings
-PUT /api/doctors/vdc-settings        # Update VDC settings (fees, availability)
-
-# Public APIs
-GET /api/doctors/search              # Search doctors (public)
-GET /api/doctors/list                # List all doctors (public)
-GET /api/doctors/:id                 # Get doctor details (public)
-GET /api/doctors/by-specialization/:specialization # Doctors by specialty
+POST /api/doctors/register                             # Register a new doctor with phone number
+POST /api/doctors/login                                # Login for existing doctor with phone number
+POST /api/doctors/validate-otp                         # Validate OTP and authenticate doctor
+POST /api/doctors/checkDoctorExists                    # Check if doctor exists by phone number
+PUT /api/doctors/personal-details/{id}                 # Update doctor's personal details (supports profile photo upload)
+PUT /api/doctors/professional-details/{id}             # Update doctor's professional details including certificates
+DELETE /api/doctors/professional-details/{id}/certificate/{certificateIndex} # Delete a certificate from professional details
+GET /api/doctors/profile                               # Get doctor's complete profile
+PUT /api/doctors/verify-email                          # Legacy email verification endpoint (DEPRECATED)
+GET /api/doctors                                       # Get all verified doctors with pagination and search
+PUT /api/doctors/online-status                         # Update doctor's online status
+GET /api/doctors/{id}/online-status                    # Get doctor's online status
+GET /api/doctors/available                             # Get online and available doctors
+GET /api/doctors/professional-details/{id}/certificates # Get doctor's current certificates
+DELETE /api/doctors/delete-account                     # Delete own doctor account
+GET /api/doctors/vdc-settings                          # Get doctor's VDC settings
+PUT /api/doctors/vdc-settings                          # Update doctor's VDC settings
+GET /api/doctors/vdc-status                            # Check if doctor has opted for VDC
+GET /api/doctors/language                              # Get doctor's UI language preference
+POST /api/doctors/language                             # Update doctor's UI language preference
+POST /api/doctors/send-email-otp                       # Send OTP to doctor's email
+POST /api/doctors/verify-email-otp                     # Verify email OTP
+GET /api/doctors/email-verification-status/{doctorId}  # Get email verification status
+POST /api/doctors/resend-email-otp                     # Resend email verification OTP
 ```
 
-### Doctor Consultation APIs (`/api/doctor/consultations`)
+### Family APIs (`/api/family`)
 
 ```http
-GET /api/doctor/consultations/queue     # Get current patient queue
-POST /api/doctor/consultations/start/:id # Start consultation with patient
-POST /api/doctor/consultations/end/:id   # End consultation
-GET /api/doctor/consultations/current    # Get currently active consultation
-GET /api/doctor/consultations/history    # Get consultation history
+GET /api/family/view-family-tree                       # View user's family tree
+POST /api/family/add-family-connection                 # Add a family member
+POST /api/family/update-family-details/{familyMemberId} # Update family member details
+DELETE /api/family/remove-member/{relatedUserId}       # Remove a family member
 ```
 
-### Video APIs (`/api/video`)
+### Patient APIs (`/api/patients`)
 
 ```http
-POST /api/video/token                # Generate Twilio access token
-POST /api/video/room                 # Create video room
-GET /api/video/rooms                 # List active rooms
-GET /api/video/room/:roomSid         # Get room details
-POST /api/video/room/:roomSid/complete # End video room
-GET /api/video/room/:roomSid/participants # List room participants
-POST /api/video/participant/:participantSid/disconnect # Disconnect participant
+POST /api/patients/register-new                        # Register new patient
+POST /api/patients/do-login                            # Login patient (send OTP)
+POST /api/patients/validate-otp                        # Validate OTP for patient authentication
+PUT /api/patients/record-personal-details              # Update patient's personal details
+GET /api/patients/profile-details                      # Get patient's profile details
+GET /api/patients/medical-details                      # Get patient's medical details
+POST /api/patients/medical-details                     # Update patient's medical details
+PUT /api/patients/email-verify                         # Verify patient's email
+GET /api/patients/video-price                          # Get video consultation pricing
+GET /api/patients/doctor-price/{doctorId}              # Get doctor's consultation price
+DELETE /api/patients/do-delete-account                 # Delete patient account
+POST /api/patients/checkUserExists                     # Check if patient exists by phone number
+POST /api/patients/checkUserExist                      # Check if patient exists by phone (proxy)
+GET /api/patients/settings/about                       # Get about page content (proxy)
+GET /api/patients/settings/terms                       # Get terms page content (proxy)
+POST /api/patients/language                            # Update preferred language (proxy)
+```
+
+### Patient Queue APIs (`/api/patientQueue`)
+
+```http
+GET /api/patientQueue/{doctorId}                       # Get patient queue for doctor
+POST /api/patientQueue/join                            # Join patient queue
+POST /api/patientQueue/leave                           # Leave patient queue
 ```
 
 ### Payment APIs (`/api/payments`)
 
 ```http
-# Payment Management (Proxy to external service)
-POST /api/payments/initiate          # Initiate payment for VDC services
-POST /api/payments/verify-payment    # Verify payment signature
-GET /api/payments/status/:payment_id # Get payment status
-POST /api/payments/split/:payment_id # Release payment to doctor
-GET /api/payments/transfer/:transfer_id # Get transfer status
-GET /api/payments/linked-account/total-transfer # Get total transfers
-POST /api/payments/refund/:payment_id # Request refund
-
-# Legacy endpoints (deprecated)
-POST /api/payment/create-order       # Use /api/payments/initiate instead
-GET /api/payment/details/:paymentId  # Use /api/payments/status instead
+POST /api/payments/initiate                            # Initiate payment
+POST /api/payments/verify-payment                      # Verify Razorpay payment
+GET /api/payments/status/{payment_id}                  # Get status of payment
+POST /api/payments/split/{payment_id}                  # Release payment to doctor
+GET /api/payments/transfer/{transfer_id}               # Get transfer status
+GET /api/payments/linked-account/total-transfer        # Get total transferred amount
+POST /api/payments/refund/{payment_id}                 # Request refund
+POST /api/payment/create-order                         # Create order (deprecated)
+GET /api/payment/details/{paymentId}                   # Get payment details (deprecated)
 ```
 
-### Queue Management APIs (`/api/queue`)
+### Report APIs (`/api/reports`)
 
 ```http
-POST /api/queue/join                 # Join doctor's queue
-GET /api/queue/status/:doctorId      # Get queue status
-POST /api/queue/leave                # Leave queue
-GET /api/queue/position              # Get current position in queue
+POST /api/reports/upload                               # Upload medical reports
+GET /api/reports/view                                  # View medical reports
+PUT /api/reports/edit/{report_id}                      # Edit medical report
+DELETE /api/reports/delete/{report_id}                 # Delete medical report
+GET /api/reports/download                              # Download merged reports
+GET /api/reports/download/{report_id}                  # Download single report
 ```
 
-### Reports APIs (`/api/reports`)
+### Video APIs (`/api/video`)
 
 ```http
-# Proxy to external reports service
-GET /api/reports/consultations       # Get consultation reports
-GET /api/reports/patients            # Get patient reports
-GET /api/reports/doctors             # Get doctor reports
-GET /api/reports/revenue             # Get revenue reports
+POST /api/video/token                                  # Generate Twilio token
+POST /api/video/room                                   # Create Twilio video room
+GET /api/video/rooms                                   # List all video rooms
+GET /api/video/room/{roomSid}                          # Get room details
+POST /api/video/room/{roomSid}/complete                # End video room
+GET /api/video/room/{roomSid}/participants             # List room participants
+POST /api/video/room/{roomSid}/participant/{participantSid}/disconnect # Disconnect participant
 ```
 
 ---
